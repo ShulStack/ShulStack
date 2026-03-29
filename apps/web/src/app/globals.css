@@ -1,0 +1,136 @@
+:root {
+  color-scheme: light;
+  --background: #f7f3ea;
+  --foreground: #1f2220;
+  --muted: #efe6d7;
+  --panel: #fffdf8;
+  --line: #d7ccb8;
+  --accent: #3f6b57;
+  --accent-strong: #2f5242;
+  --accent-soft: #dfece5;
+  --warning: #8c5d2e;
+  --font-body: "Georgia", "Iowan Old Style", "Palatino Linotype", serif;
+  --font-display: "Avenir Next", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: radial-gradient(circle at top, #fff8eb 0%, var(--background) 55%, #efe7da 100%);
+  color: var(--foreground);
+}
+
+body {
+  font-family: var(--font-body);
+}
+
+a {
+  color: inherit;
+}
+
+.shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 32px 20px 64px;
+}
+
+.hero {
+  display: grid;
+  gap: 20px;
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(239, 230, 215, 0.82));
+  box-shadow: 0 24px 64px rgba(63, 107, 87, 0.08);
+}
+
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 12px;
+  font-family: var(--font-display);
+  color: var(--accent);
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(40px, 7vw, 72px);
+  line-height: 0.95;
+  font-family: var(--font-display);
+}
+
+.hero p {
+  max-width: 72ch;
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+.hero-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: white;
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.button.secondary {
+  background: transparent;
+  color: var(--accent-strong);
+}
+
+.section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.card {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--panel);
+}
+
+.card h2,
+.card h3 {
+  margin-top: 0;
+  font-family: var(--font-display);
+}
+
+.card ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.muted {
+  color: rgba(31, 34, 32, 0.72);
+}
+
+code {
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(63, 107, 87, 0.08);
+  font-family: "SFMono-Regular", "SF Mono", Consolas, monospace;
+  font-size: 0.95em;
+}

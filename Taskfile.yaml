@@ -1,0 +1,114 @@
+version: "3"
+
+output: group
+dotenv:
+  - .env
+
+vars:
+  HERMIT: "source {{.TASKFILE_DIR}}/bin/activate-hermit"
+
+tasks:
+  bootstrap:
+    desc: "Install dependencies and create a local .env file if needed"
+    cmds:
+      - /bin/zsh -lc 'test -f .env || cp .env.example .env'
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm install'
+
+  install:
+    desc: "Install workspace dependencies"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm install'
+
+  doctor:
+    desc: "Print local toolchain versions"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && node --version && pnpm --version && task --version'
+
+  dev:
+    desc: "Start local services, then run the web app and worker"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && docker compose up -d postgres mailpit && pnpm dev'
+
+  dev:web:
+    desc: "Run the web app only"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm --filter @shulstack/web dev'
+
+  dev:worker:
+    desc: "Run the worker only"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm --filter @shulstack/worker dev'
+
+  dev:services:
+    desc: "Start Postgres and Mailpit"
+    cmds:
+      - /bin/zsh -lc 'docker compose up -d postgres mailpit'
+
+  dev:services:stop:
+    desc: "Stop local Postgres and Mailpit"
+    cmds:
+      - /bin/zsh -lc 'docker compose down'
+
+  generate:
+    desc: "Run repo generators"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm generate'
+
+  payload:types:
+    desc: "Generate Payload types"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm --filter @shulstack/web payload:types'
+
+  payload:importmap:
+    desc: "Generate Payload import map"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm --filter @shulstack/web payload:importmap'
+
+  db:generate:
+    desc: "Generate Drizzle migrations"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm --filter @shulstack/db db:generate'
+
+  db:migrate:
+    desc: "Apply Drizzle migrations"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm --filter @shulstack/db db:migrate'
+
+  lint:
+    desc: "Run lint checks"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm lint'
+
+  typecheck:
+    desc: "Run TypeScript checks"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm typecheck'
+
+  test:
+    desc: "Run the test suite"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm test'
+
+  build:
+    desc: "Build the workspace"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm build'
+
+  format:
+    desc: "Format source files and YAML"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm format'
+      - /bin/zsh -lc '{{.HERMIT}} && yamlfmt .'
+
+  do:
+    desc: "Run the standard validation pass"
+    cmds:
+      - task: lint
+      - task: typecheck
+      - task: test
+      - task: build
+
+  clean:
+    desc: "Remove build artifacts and cache directories"
+    cmds:
+      - /bin/zsh -lc 'rm -rf .turbo .task apps/*/.next apps/*/dist packages/*/dist packages/*/.turbo'
