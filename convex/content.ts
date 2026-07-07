@@ -32,6 +32,51 @@ export const getPublishedPage = query({
   },
 });
 
+/** Published pages for an institution's public site index. */
+export const listPublishedPages = query({
+  args: { institutionSlug: v.string() },
+  handler: async (ctx, args) => {
+    const institution = await ctx.db
+      .query("institutions")
+      .withIndex("by_slug", (q) => q.eq("slug", args.institutionSlug))
+      .unique();
+    if (institution === null) {
+      return null;
+    }
+    const pages = await ctx.db
+      .query("pages")
+      .withIndex("by_institution_status", (q) =>
+        q.eq("institutionId", institution._id).eq("status", "published"),
+      )
+      .collect();
+    return {
+      institutionName: institution.name,
+      pages: pages.map((page) => ({
+        slug: page.slug,
+        title: page.title,
+        summary: page.summary,
+      })),
+    };
+  },
+});
+
+/** Staff read of a page in any status, for the editor. */
+export const getPageForStaff = query({
+  args: {
+    institutionId: v.id("institutions"),
+    slug: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requireStaff(ctx, args.institutionId);
+    return await ctx.db
+      .query("pages")
+      .withIndex("by_institution_slug", (q) =>
+        q.eq("institutionId", args.institutionId).eq("slug", args.slug),
+      )
+      .unique();
+  },
+});
+
 export const listPages = query({
   args: { institutionId: v.id("institutions") },
   handler: async (ctx, args) => {

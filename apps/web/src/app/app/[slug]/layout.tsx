@@ -57,22 +57,33 @@ function WorkspaceShell({ children }: { children: ReactNode }) {
     );
   }
 
+  const cmsEnabled = workspace.modules.some((module) => module.slug === "cms" && module.enabled);
+  const isAdmin = workspace.role === "admin" || workspace.role === "owner";
+  const navItems = [
+    { segment: "", label: "Overview" },
+    { segment: "households", label: "Households" },
+    { segment: "people", label: "People" },
+    ...(cmsEnabled ? [{ segment: "website", label: "Website" }] : []),
+    ...(isAdmin ? [{ segment: "import", label: "Import" }] : []),
+    { segment: "settings", label: "Settings" },
+  ];
   return (
     <div className="app-shell">
-      <WorkspaceNav institutionName={workspace.institution.name} />
+      <WorkspaceNav institutionName={workspace.institution.name} navItems={navItems} />
       <main className="app-main">{children}</main>
     </div>
   );
 }
 
-const NAV_ITEMS = [
-  { segment: "", label: "Overview" },
-  { segment: "households", label: "Households" },
-  { segment: "people", label: "People" },
-  { segment: "settings", label: "Settings" },
-];
+type NavItem = { segment: string; label: string };
 
-function WorkspaceNav({ institutionName }: { institutionName: string }) {
+function WorkspaceNav({
+  institutionName,
+  navItems,
+}: {
+  institutionName: string;
+  navItems: NavItem[];
+}) {
   const params = useParams<{ slug: string }>();
   const pathname = usePathname();
   const { signOut } = useAuthActions();
@@ -87,7 +98,7 @@ function WorkspaceNav({ institutionName }: { institutionName: string }) {
         </Link>
         <p className="app-nav-institution">{institutionName}</p>
         <nav>
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const href = item.segment === "" ? base : `${base}/${item.segment}`;
             const isActive = item.segment === "" ? pathname === base : pathname.startsWith(href);
             return (

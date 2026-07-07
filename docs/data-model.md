@@ -26,6 +26,7 @@ supports imports, operational workflows, and future modules.
 | `externalReferences` | Source-system ids (ShulCloud ids, billing ids) |
 | `householdBillingProfiles` | Delivery method, discounts, live balance |
 | `householdBalanceSnapshots` | Dated balance history |
+| `ledgerEntries` | Immutable charges/payments/credits/opening balances; each entry atomically moves the profile balance |
 | `pages` / `siteSettings` / `media` | Per-institution site content |
 
 Plus the Convex Auth tables (`users`, `authSessions`, …) via `authTables`.

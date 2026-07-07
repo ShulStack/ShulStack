@@ -5,8 +5,11 @@
 The platform core is real and tested: multi-tenant institutions, staff roles
 with enforcement on every function, audit logging, domain events with a
 retrying processor, the membership CRM (households, people, memberships,
-search), household billing records with balance history, per-institution CMS
-pages on a public route, and a staff dashboard covering all of it.
+search), a financial ledger (charges/payments/credits with atomic balance
+updates), ShulCloud CSV import for accounts and people (idempotent re-runs
+via external references), per-institution CMS pages with a dashboard editor
+and publish flow on a public site route, and a staff dashboard covering all
+of it.
 
 ## Principles
 
@@ -20,17 +23,18 @@ pages on a public route, and a staff dashboard covering all of it.
 
 ## Near term
 
-1. **ShulCloud import** — CSV import mutations for account and people
-   exports, mapping through `externalReferences` for idempotent re-runs.
-2. **Contact details in the dashboard** — addresses and contact points exist
-   in the schema; give them UI on household/person pages.
-3. **Yahrzeits module** — the first ritual module: `@hebcal/core`-backed
+1. **Contact details in the dashboard** — addresses and contact points are
+   in the schema and populated by the importer; give them UI on
+   household/person pages.
+2. **Yahrzeits module** — the first ritual module: `@hebcal/core`-backed
    Hebrew-date conversion, yahrzeit records tied to `personLifecycleEvents`,
    and `yahrzeit.upcoming` domain events for reminders.
-4. **Member portal** — `personUserLinks` exists; add invite flow, a member
+3. **Member portal** — `personUserLinks` exists; add invite flow, a member
    view of their own household, and balance visibility.
-5. **Communications** — email delivery through the domain-event processor
+4. **Communications** — email delivery through the domain-event processor
    (Mailpit locally), starting with staff-triggered announcements.
+5. **Recurring dues billing** — generate annual/monthly charges onto the
+   ledger from a dues schedule.
 
 ## Later
 

@@ -11,6 +11,7 @@ import {
   domainEventStatusValidator,
   genderValidator,
   householdMemberRoleValidator,
+  ledgerEntryTypeValidator,
   lifecycleEventTypeValidator,
   metadataValidator,
   moduleSlugValidator,
@@ -330,6 +331,26 @@ export default defineSchema({
     balanceMinor: v.number(),
     metadata: metadataValidator,
   }).index("by_profile_date", ["billingProfileId", "asOfDate"]),
+
+  // Immutable financial ledger. Balances on billing profiles are maintained
+  // atomically by the mutations that insert these rows; corrections are new
+  // credit/charge entries, never edits.
+  ledgerEntries: defineTable({
+    institutionId: v.id("institutions"),
+    householdId: v.id("households"),
+    entryType: ledgerEntryTypeValidator,
+    // Positive for charge/payment/credit (sign comes from the type);
+    // opening_balance carries a signed amount.
+    amountMinor: v.number(),
+    occurredAt: v.string(),
+    category: optionalText,
+    method: optionalText,
+    memo: optionalText,
+    createdBy: v.optional(v.id("users")),
+    metadata: metadataValidator,
+  })
+    .index("by_household_date", ["householdId", "occurredAt"])
+    .index("by_institution", ["institutionId"]),
 
   // --- Content ---------------------------------------------------------------
 

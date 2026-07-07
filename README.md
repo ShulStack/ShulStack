@@ -15,10 +15,14 @@ The platform core works today and is covered by an automated test suite:
   `staff` roles, enforced on every backend function, with an audit trail.
 - **CRM** — households, people (including Hebrew name fields), household
   membership with roles, search, and soft-deactivation.
-- **Finance records** — household billing profiles and dated balance
-  snapshots. Money is integer minor units end to end.
-- **Content** — per-institution pages with draft/published/archived states,
-  served on a public site route.
+- **Finance ledger** — charges, payments, and credits that atomically move
+  household balances, plus dated balance snapshots. Money is integer minor
+  units end to end.
+- **ShulCloud import** — upload the accounts and people CSV exports and get
+  households, people, memberships, contact info, and opening balances.
+  Re-running an import updates records instead of duplicating them.
+- **Website** — per-institution pages with a block editor and
+  draft/publish/archive flow, served on a public site route with an index.
 - **Domain events** — mutations emit events (`household.created`, …) that are
   processed by an idempotent, retrying background processor.
 - **Sample data** — one click loads a realistic demo dataset into an empty

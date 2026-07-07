@@ -4,7 +4,7 @@ import { api } from "@shulstack/convex/_generated/api";
 import type { Doc, Id } from "@shulstack/convex/_generated/dataModel";
 import { formatMoney, parseMoney } from "@shulstack/platform";
 import { Badge, Button, Card, EmptyState, Field, PageHeader } from "@shulstack/ui";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -260,6 +260,15 @@ function AddMemberForm({
   );
 }
 
+const LEDGER_TYPES = ["charge", "payment", "credit"] as const;
+
+const LEDGER_TONE = {
+  charge: "warning",
+  payment: "positive",
+  credit: "positive",
+  opening_balance: "neutral",
+} as const;
+
 function BillingCard({
   billingProfile,
   householdId,
@@ -267,10 +276,16 @@ function BillingCard({
   billingProfile: Doc<"householdBillingProfiles"> | null;
   householdId: Id<"households">;
 }) {
-  const recordSnapshot = useMutation(api.finance.recordBalanceSnapshot);
-  const finance = useQuery(api.finance.getHouseholdFinance, { householdId });
+  const addLedgerEntry = useMutation(api.ledger.addLedgerEntry);
+  const entries = usePaginatedQuery(
+    api.ledger.listLedgerEntries,
+    { householdId },
+    { initialNumItems: 25 },
+  );
+  const [entryType, setEntryType] = useState<(typeof LEDGER_TYPES)[number]>("charge");
   const [amount, setAmount] = useState("");
-  const [asOfDate, setAsOfDate] = useState(todayIsoDate());
+  const [occurredAt, setOccurredAt] = useState(todayIsoDate());
+  const [detail, setDetail] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const currency = billingProfile?.currency ?? "USD";
@@ -292,19 +307,47 @@ function BillingCard({
         onSubmit={(event) => {
           event.preventDefault();
           setError(null);
-          let balanceMinor: number;
+          let amountMinor: number;
           try {
-            balanceMinor = parseMoney(amount, currency);
+            amountMinor = parseMoney(amount, currency);
           } catch (caught) {
             setError(errorMessage(caught));
             return;
           }
-          recordSnapshot({ householdId, asOfDate, balanceMinor })
-            .then(() => setAmount(""))
+          addLedgerEntry({
+            householdId,
+            entryType,
+            amountMinor,
+            occurredAt,
+            ...(detail.trim() === ""
+              ? {}
+              : entryType === "payment"
+                ? { method: detail.trim() }
+                : { category: detail.trim() }),
+          })
+            .then(() => {
+              setAmount("");
+              setDetail("");
+            })
             .catch((caught) => setError(errorMessage(caught)));
         }}
       >
-        <Field label="Record balance">
+        <Field label="Type">
+          {(id) => (
+            <select
+              id={id}
+              onChange={(event) => setEntryType(event.target.value as typeof entryType)}
+              value={entryType}
+            >
+              {LEDGER_TYPES.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+        <Field label="Amount">
           {(id) => (
             <input
               id={id}
@@ -315,39 +358,68 @@ function BillingCard({
             />
           )}
         </Field>
-        <Field label="As of">
+        <Field label="Date">
           {(id) => (
             <input
               id={id}
-              onChange={(event) => setAsOfDate(event.target.value)}
+              onChange={(event) => setOccurredAt(event.target.value)}
               required
               type="date"
-              value={asOfDate}
+              value={occurredAt}
             />
           )}
         </Field>
-        <Button type="submit" variant="secondary">
-          Save snapshot
-        </Button>
+        <Field label={entryType === "payment" ? "Method" : "Category"}>
+          {(id) => (
+            <input
+              id={id}
+              onChange={(event) => setDetail(event.target.value)}
+              placeholder={entryType === "payment" ? "check" : "dues"}
+              value={detail}
+            />
+          )}
+        </Field>
+        <Button type="submit">Record {entryType}</Button>
       </form>
       {error === null ? null : <p className="form-error">{error}</p>}
-      {finance !== undefined && finance !== null && finance.snapshots.length > 0 ? (
+      {entries.results.length === 0 ? (
+        <p className="muted">No ledger activity yet.</p>
+      ) : (
         <table className="data-table">
           <thead>
             <tr>
               <th>Date</th>
-              <th>Balance</th>
+              <th>Type</th>
+              <th>Detail</th>
+              <th>Amount</th>
             </tr>
           </thead>
           <tbody>
-            {finance.snapshots.map((snapshot) => (
-              <tr key={snapshot._id}>
-                <td className="muted">{formatIsoDate(snapshot.asOfDate)}</td>
-                <td>{formatMoney(snapshot.balanceMinor, currency)}</td>
-              </tr>
-            ))}
+            {entries.results.map((entry) => {
+              const signed =
+                entry.entryType === "payment" || entry.entryType === "credit"
+                  ? -entry.amountMinor
+                  : entry.amountMinor;
+              return (
+                <tr key={entry._id}>
+                  <td className="muted">{formatIsoDate(entry.occurredAt)}</td>
+                  <td>
+                    <Badge tone={LEDGER_TONE[entry.entryType]}>
+                      {entry.entryType.replace("_", " ")}
+                    </Badge>
+                  </td>
+                  <td className="muted">{entry.category ?? entry.method ?? entry.memo ?? "—"}</td>
+                  <td>{formatMoney(signed, currency)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
+      )}
+      {entries.status === "CanLoadMore" ? (
+        <Button onClick={() => entries.loadMore(25)} variant="secondary">
+          Load more
+        </Button>
       ) : null}
     </Card>
   );

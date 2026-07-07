@@ -3,6 +3,7 @@ import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { mutation } from "./_generated/server";
+import { recordLedgerEntry } from "./ledger";
 import { requireStaff } from "./lib/access";
 import { logAudit } from "./lib/audit";
 import { emitDomainEvent } from "./lib/domainEvents";
@@ -182,14 +183,17 @@ async function createSampleHousehold(
     isFirst = false;
   }
 
-  await ctx.db.insert("householdBillingProfiles", {
-    institutionId,
-    householdId,
-    balanceMinor: sample.balanceMinor,
-    balanceAsOf: "2026-07-01",
-    currency: "USD",
-    metadata: { sample: true },
-    updatedAt: now,
-  });
+  if (sample.balanceMinor !== 0) {
+    const household = await ctx.db.get(householdId);
+    if (household !== null) {
+      await recordLedgerEntry(ctx, household, {
+        entryType: "opening_balance",
+        amountMinor: sample.balanceMinor,
+        occurredAt: "2026-07-01",
+        memo: "Opening balance (sample data)",
+        metadata: { sample: true },
+      });
+    }
+  }
   return householdId;
 }

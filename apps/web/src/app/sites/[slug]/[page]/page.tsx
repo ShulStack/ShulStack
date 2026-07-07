@@ -1,6 +1,9 @@
 import { api } from "@shulstack/convex/_generated/api";
 import { fetchQuery } from "convex/nextjs";
+import Link from "next/link";
 import { notFound } from "next/navigation";
+
+import { renderMarkdownLite } from "../../../../lib/markdown";
 
 export const dynamic = "force-dynamic";
 
@@ -25,14 +28,35 @@ export default async function PublicSitePage({ params }: PublicPageProps) {
   return (
     <main className="shell narrow">
       <article className="public-page">
+        <p className="eyebrow">
+          <Link href={`/sites/${slug}`}>Home</Link>
+        </p>
         <h1>{document.title}</h1>
         {document.summary === undefined ? null : <p className="muted">{document.summary}</p>}
         {document.layout.map((block, index) =>
           typeof block.body === "string" ? (
             // biome-ignore lint/suspicious/noArrayIndexKey: layout blocks have no ids
-            <p className="public-block" key={index}>
-              {block.body}
-            </p>
+            <section className="public-block" key={index}>
+              {renderMarkdownLite(block.body).map((rendered, blockIndex) => {
+                const key = blockIndex;
+                switch (rendered.kind) {
+                  case "h2":
+                    return <h2 key={key}>{rendered.text}</h2>;
+                  case "h3":
+                    return <h3 key={key}>{rendered.text}</h3>;
+                  case "ul":
+                    return (
+                      <ul key={key}>
+                        {rendered.items.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    );
+                  default:
+                    return <p key={key}>{rendered.text}</p>;
+                }
+              })}
+            </section>
           ) : null,
         )}
       </article>

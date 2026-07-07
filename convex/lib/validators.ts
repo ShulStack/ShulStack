@@ -86,6 +86,14 @@ export const lifecycleEventTypeValidator = v.union(
   v.literal("other"),
 );
 
+export const ledgerEntryTypeValidator = v.union(
+  v.literal("charge"),
+  v.literal("payment"),
+  v.literal("credit"),
+  v.literal("opening_balance"),
+);
+export type LedgerEntryType = "charge" | "payment" | "credit" | "opening_balance";
+
 export const pageStatusValidator = v.union(
   v.literal("draft"),
   v.literal("published"),

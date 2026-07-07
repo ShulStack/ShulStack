@@ -15,6 +15,8 @@ import type * as crons from "../crons.js";
 import type * as events from "../events.js";
 import type * as finance from "../finance.js";
 import type * as http from "../http.js";
+import type * as imports from "../imports.js";
+import type * as ledger from "../ledger.js";
 import type * as lib_access from "../lib/access.js";
 import type * as lib_audit from "../lib/audit.js";
 import type * as lib_domainEvents from "../lib/domainEvents.js";
@@ -37,6 +39,8 @@ declare const fullApi: ApiFromModules<{
   events: typeof events;
   finance: typeof finance;
   http: typeof http;
+  imports: typeof imports;
+  ledger: typeof ledger;
   "lib/access": typeof lib_access;
   "lib/audit": typeof lib_audit;
   "lib/domainEvents": typeof lib_domainEvents;
