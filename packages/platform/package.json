@@ -8,10 +8,11 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --out-dir dist",
-    "generate": "echo 'platform has no generators yet'",
-    "lint": "biome check .",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.2"
   }
 }

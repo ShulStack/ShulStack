@@ -1,105 +1,92 @@
 version: "3"
-
 output: group
 dotenv:
   - .env
-
 vars:
   HERMIT: "source {{.TASKFILE_DIR}}/bin/activate-hermit"
-
 tasks:
   bootstrap:
     desc: "Install dependencies and create a local .env file if needed"
     cmds:
       - /bin/zsh -lc 'test -f .env || cp .env.example .env'
       - /bin/zsh -lc '{{.HERMIT}} && pnpm install'
-
   install:
     desc: "Install workspace dependencies"
     cmds:
       - /bin/zsh -lc '{{.HERMIT}} && pnpm install'
-
   doctor:
     desc: "Print local toolchain versions"
     cmds:
       - /bin/zsh -lc '{{.HERMIT}} && node --version && pnpm --version && task --version'
-
   dev:
-    desc: "Start local services, then run the web app and worker"
+    desc: "Run Convex (local dev deployment) and the web app"
     cmds:
-      - /bin/zsh -lc '{{.HERMIT}} && docker compose up -d postgres mailpit && pnpm dev'
-
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm dev'
   dev:web:
     desc: "Run the web app only"
     cmds:
       - /bin/zsh -lc '{{.HERMIT}} && pnpm --filter @shulstack/web dev'
-
-  dev:worker:
-    desc: "Run the worker only"
+  dev:convex:
+    desc: "Run Convex dev only"
     cmds:
-      - /bin/zsh -lc '{{.HERMIT}} && pnpm --filter @shulstack/worker dev'
-
-  dev:services:
-    desc: "Start Postgres and Mailpit"
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm convex:dev'
+  dev:containers:
+    desc: "Run the self-hosted stack (Convex backend, dashboard, Mailpit, web) in Docker"
     cmds:
-      - /bin/zsh -lc 'docker compose up -d postgres mailpit'
-
-  dev:services:stop:
-    desc: "Stop local Postgres and Mailpit"
+      - /bin/zsh -lc 'docker compose up --build'
+  dev:containers:watch:
+    desc: "Run the Docker stack with live file sync/rebuild"
+    cmds:
+      - /bin/zsh -lc 'docker compose up --build --watch'
+  dev:containers:stop:
+    desc: "Stop the Docker development stack"
     cmds:
       - /bin/zsh -lc 'docker compose down'
-
-  generate:
-    desc: "Run repo generators"
+  dev:services:
+    desc: "Start only the self-hosted Convex backend, dashboard, and Mailpit"
     cmds:
-      - /bin/zsh -lc '{{.HERMIT}} && pnpm generate'
-
-  payload:types:
-    desc: "Generate Payload types"
+      - /bin/zsh -lc 'docker compose up -d convex-backend convex-dashboard mailpit'
+  convex:codegen:
+    desc: "Generate Convex type definitions"
     cmds:
-      - /bin/zsh -lc '{{.HERMIT}} && pnpm --filter @shulstack/web payload:types'
-
-  payload:importmap:
-    desc: "Generate Payload import map"
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm convex:codegen'
+  convex:auth-setup:
+    desc: "Generate and set Convex Auth JWT keys on the current dev deployment"
     cmds:
-      - /bin/zsh -lc '{{.HERMIT}} && pnpm --filter @shulstack/web payload:importmap'
-
-  db:generate:
-    desc: "Generate Drizzle migrations"
+      - /bin/zsh -lc '{{.HERMIT}} && node scripts/setup-convex-auth.mjs'
+  convex:auth-keys:
+    desc: "Print Convex Auth JWT keys (for self-hosted deployments)"
     cmds:
-      - /bin/zsh -lc '{{.HERMIT}} && pnpm --filter @shulstack/db db:generate'
-
-  db:migrate:
-    desc: "Apply Drizzle migrations"
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm convex:generate-auth-keys'
+  convex:admin-key:
+    desc: "Generate a self-hosted Convex admin key (Docker stack)"
     cmds:
-      - /bin/zsh -lc '{{.HERMIT}} && pnpm --filter @shulstack/db db:migrate'
-
+      - /bin/zsh -lc 'docker compose exec convex-backend ./generate_admin_key.sh'
+  convex:deploy:
+    desc: "Deploy Convex functions"
+    cmds:
+      - /bin/zsh -lc '{{.HERMIT}} && pnpm convex:deploy'
   lint:
     desc: "Run lint checks"
     cmds:
       - /bin/zsh -lc '{{.HERMIT}} && pnpm lint'
-
   typecheck:
     desc: "Run TypeScript checks"
     cmds:
       - /bin/zsh -lc '{{.HERMIT}} && pnpm typecheck'
-
   test:
     desc: "Run the test suite"
     cmds:
       - /bin/zsh -lc '{{.HERMIT}} && pnpm test'
-
   build:
     desc: "Build the workspace"
     cmds:
       - /bin/zsh -lc '{{.HERMIT}} && pnpm build'
-
   format:
     desc: "Format source files and YAML"
     cmds:
       - /bin/zsh -lc '{{.HERMIT}} && pnpm format'
       - /bin/zsh -lc '{{.HERMIT}} && yamlfmt .'
-
   do:
     desc: "Run the standard validation pass"
     cmds:
@@ -107,7 +94,6 @@ tasks:
       - task: typecheck
       - task: test
       - task: build
-
   clean:
     desc: "Remove build artifacts and cache directories"
     cmds:

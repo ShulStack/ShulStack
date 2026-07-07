@@ -5,18 +5,11 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "payload-types.ts"]
+      "outputs": [".next/**", "!.next/cache/**"]
     },
     "dev": {
       "cache": false,
       "persistent": true
-    },
-    "generate": {
-      "dependsOn": ["^generate"],
-      "cache": false
-    },
-    "lint": {
-      "dependsOn": ["^lint"]
     },
     "typecheck": {
       "dependsOn": ["^typecheck"]

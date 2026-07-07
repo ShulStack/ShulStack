@@ -8,22 +8,33 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev --parallel",
-    "generate": "turbo run generate",
-    "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
+    "convex:codegen": "convex codegen",
+    "convex:deploy": "convex deploy",
+    "convex:dev": "convex dev",
+    "convex:generate-auth-keys": "node scripts/generate-convex-auth-keys.mjs",
+    "dev": "concurrently -n convex,web -c cyan,green \"pnpm convex:dev\" \"turbo run dev --parallel --filter=@shulstack/web\"",
+    "lint": "biome check .",
+    "typecheck": "turbo run typecheck && tsc --project convex/tsconfig.json && tsc --project tests/tsconfig.json",
+    "test": "vitest run && turbo run test",
     "format": "biome check --write ."
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.9",
+    "@edge-runtime/vm": "^5.0.0",
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "tsup": "^8.5.1",
-    "tsx": "^4.21.0",
+    "concurrently": "^9.2.1",
+    "convex-test": "^0.0.54",
+    "jose": "^5.9.6",
     "turbo": "^2.8.21",
     "typescript": "^5.9.3",
     "vitest": "^4.1.2"
+  },
+  "dependencies": {
+    "@auth/core": "0.37.0",
+    "@convex-dev/auth": "^0.0.92",
+    "@shulstack/platform": "workspace:*",
+    "convex": "^1.38.0"
   }
 }

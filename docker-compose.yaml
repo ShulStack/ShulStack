@@ -1,27 +1,84 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: shulstack-postgres
-    environment:
-      POSTGRES_DB: shulstack
-      POSTGRES_USER: shulstack
-      POSTGRES_PASSWORD: shulstack
+  convex-backend:
+    image: ghcr.io/get-convex/convex-backend:latest
+    container_name: shulstack-convex-backend
+    stop_grace_period: 10s
+    stop_signal: SIGINT
     ports:
-      - "5432:5432"
+      - "${CONVEX_PORT:-3210}:3210"
+      - "${CONVEX_SITE_PROXY_PORT:-3211}:3211"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - convex-data:/convex/data
+    environment:
+      APPLICATION_MAX_CONCURRENT_MUTATIONS: ${APPLICATION_MAX_CONCURRENT_MUTATIONS:-16}
+      APPLICATION_MAX_CONCURRENT_NODE_ACTIONS: ${APPLICATION_MAX_CONCURRENT_NODE_ACTIONS:-16}
+      APPLICATION_MAX_CONCURRENT_QUERIES: ${APPLICATION_MAX_CONCURRENT_QUERIES:-16}
+      APPLICATION_MAX_CONCURRENT_V8_ACTIONS: ${APPLICATION_MAX_CONCURRENT_V8_ACTIONS:-16}
+      CONVEX_CLOUD_ORIGIN: ${CONVEX_CLOUD_ORIGIN:-http://127.0.0.1:${CONVEX_PORT:-3210}}
+      CONVEX_SITE_ORIGIN: ${CONVEX_SITE_ORIGIN:-http://127.0.0.1:${CONVEX_SITE_PROXY_PORT:-3211}}
+      DISABLE_METRICS_ENDPOINT: ${DISABLE_METRICS_ENDPOINT:-true}
+      DOCUMENT_RETENTION_DELAY: ${DOCUMENT_RETENTION_DELAY:-172800}
+      RUST_LOG: ${RUST_LOG:-info}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U shulstack -d shulstack"]
+      test: ["CMD", "curl", "-f", "http://localhost:3210/version"]
       interval: 5s
-      timeout: 5s
-      retries: 20
-
+      start_period: 10s
+  convex-dashboard:
+    image: ghcr.io/get-convex/convex-dashboard:latest
+    container_name: shulstack-convex-dashboard
+    depends_on:
+      convex-backend:
+        condition: service_healthy
+    ports:
+      - "${CONVEX_DASHBOARD_PORT:-6791}:6791"
+    environment:
+      NEXT_PUBLIC_DEPLOYMENT_URL: ${NEXT_PUBLIC_DEPLOYMENT_URL:-http://127.0.0.1:${CONVEX_PORT:-3210}}
   mailpit:
     image: axllent/mailpit:latest
     container_name: shulstack-mailpit
     ports:
       - "1025:1025"
       - "8025:8025"
-
+  web:
+    build:
+      context: .
+      dockerfile: containers/shulstack-web.Dockerfile
+    container_name: shulstack-web
+    depends_on:
+      convex-backend:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
+      CONVEX_SERVER_URL: ${CONVEX_SERVER_URL:-http://convex-backend:3210}
+      NEXT_PUBLIC_CONVEX_URL: ${NEXT_PUBLIC_CONVEX_URL:-http://localhost:3210}
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+    init: true
+    ports:
+      - "3000:3000"
+    develop:
+      watch:
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./pnpm-lock.yaml
+        - action: rebuild
+          path: ./pnpm-workspace.yaml
+        - action: rebuild
+          path: ./turbo.json
+        - action: sync
+          path: ./apps/web
+          target: /app/apps/web
+        - action: sync
+          path: ./convex
+          target: /app/convex
+        - action: sync
+          path: ./packages/platform
+          target: /app/packages/platform
+        - action: sync
+          path: ./packages/ui
+          target: /app/packages/ui
 volumes:
-  postgres-data:
+  convex-data:

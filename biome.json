@@ -7,8 +7,11 @@
       "!**/dist",
       "!**/coverage",
       "!**/node_modules",
-      "!apps/web/src/app/(payload)/admin/importMap.js",
-      "!apps/web/src/payload-types.ts"
+      "!**/.turbo",
+      "!**/.convex",
+      "!**/.task",
+      "!**/.hermit",
+      "!convex/_generated"
     ]
   },
   "formatter": {

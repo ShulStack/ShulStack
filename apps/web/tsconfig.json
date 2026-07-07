@@ -9,7 +9,7 @@
       }
     ],
     "paths": {
-      "@payload-config": ["./src/payload.config.ts"]
+      "@shulstack/convex/*": ["../../convex/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
