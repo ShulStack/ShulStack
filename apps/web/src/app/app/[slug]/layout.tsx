@@ -102,7 +102,12 @@ function WorkspaceNav({
             const href = item.segment === "" ? base : `${base}/${item.segment}`;
             const isActive = item.segment === "" ? pathname === base : pathname.startsWith(href);
             return (
-              <Link className={isActive ? "nav-link active" : "nav-link"} href={href} key={href}>
+              <Link
+                aria-current={isActive ? "page" : undefined}
+                className={isActive ? "nav-link active" : "nav-link"}
+                href={href}
+                key={href}
+              >
                 {item.label}
               </Link>
             );

@@ -23,20 +23,28 @@ of it.
 
 ## Near term
 
-1. **Contact details in the dashboard** — addresses and contact points are
+1. **Staff invite links** — replace add-by-email-match with token-based
+   invites, closing the unverified-email trust gap called out in
+   [architecture.md](./architecture.md).
+2. **Contact details in the dashboard** — addresses and contact points are
    in the schema and populated by the importer; give them UI on
    household/person pages.
-2. **Yahrzeits module** — the first ritual module: `@hebcal/core`-backed
+3. **Yahrzeits module** — the first ritual module: `@hebcal/core`-backed
    Hebrew-date conversion, yahrzeit records tied to `personLifecycleEvents`,
    and `yahrzeit.upcoming` domain events for reminders.
-3. **Member portal** — `personUserLinks` exists; add invite flow, a member
+4. **Member portal** — `personUserLinks` exists; add invite flow, a member
    view of their own household, and balance visibility.
-4. **Communications** — email delivery through the domain-event processor
+5. **Communications** — email delivery through the domain-event processor
    (Mailpit locally), starting with staff-triggered announcements.
-5. **Recurring dues billing** — generate annual/monthly charges onto the
+6. **Recurring dues billing** — generate annual/monthly charges onto the
    ledger from a dues schedule.
+7. **MCP server for agents** — expose the membership/finance data over MCP
+   (institution-scoped, role-aware) so AI agents can query it safely.
 
 ## Later
+
+- Production container image for the self-hosted web app (the compose stack
+  currently runs the Next.js dev server).
 
 - Events module (registration, capacity, payments hook).
 - Fundraising (campaigns, pledges) and real invoicing on top of the balance

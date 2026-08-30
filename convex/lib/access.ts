@@ -61,3 +61,23 @@ export async function requireStaff(
 
   return { userId, staff, institution };
 }
+
+/**
+ * Non-throwing variant of requireStaff for queries that return null on any
+ * kind of "no": a missing record and another institution's record must be
+ * indistinguishable to the caller, or IDs become an existence oracle.
+ */
+export async function staffOrNull(
+  ctx: QueryCtx,
+  institutionId: Id<"institutions">,
+  minimumRole: StaffRole = "staff",
+): Promise<StaffContext | null> {
+  try {
+    return await requireStaff(ctx, institutionId, minimumRole);
+  } catch (error) {
+    if (error instanceof ConvexError) {
+      return null;
+    }
+    throw error;
+  }
+}

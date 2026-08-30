@@ -9,6 +9,8 @@ export default convexAuthNextjsMiddleware(undefined, {
   },
 });
 
+// Only the staff surface needs auth cookies; the landing page and public
+// sites stay middleware-free (and cacheable).
 export const config = {
-  matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
+  matcher: ["/app/:path*", "/api/auth/:path*"],
 };

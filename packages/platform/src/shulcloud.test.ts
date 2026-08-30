@@ -47,6 +47,39 @@ describe("mapAccountsCsv", () => {
   });
 });
 
+describe("activity defaults", () => {
+  test("a resignation date means inactive unless the export says otherwise", () => {
+    const csv = `ID,Name,Date Resigned,Active
+301,Resigned Household,6/30/2024,
+302,Active Household,,
+303,Explicitly Active,1/1/2020,Yes`;
+    const { accounts } = mapAccountsCsv(csv);
+    expect(accounts.map((a) => [a.externalId, a.isActive])).toEqual([
+      ["301", false],
+      ["302", true],
+      ["303", true],
+    ]);
+  });
+
+  test("deceased people default to inactive", () => {
+    const csv = `ID,First Name,Last Name,Deceased
+401,Alte,Bubbe,Yes
+402,Living,Person,No`;
+    const { people } = mapPeopleCsv(csv);
+    expect(people.map((p) => [p.externalId, p.isDeceased, p.isActive])).toEqual([
+      ["401", true, false],
+      ["402", false, true],
+    ]);
+  });
+
+  test("a malformed file becomes a file-level issue, not a silent truncation", () => {
+    const csv = 'ID,Name\n101,"Unclosed quote\n102,Lost Row';
+    const { accounts, issues } = mapAccountsCsv(csv);
+    expect(accounts).toHaveLength(0);
+    expect(issues).toEqual([{ row: 1, message: expect.stringMatching(/[Uu]nterminated/) }]);
+  });
+});
+
 describe("mapPeopleCsv", () => {
   test("maps people with roles, contact points, and account links", () => {
     const { people, issues } = mapPeopleCsv(PEOPLE_CSV);

@@ -1,13 +1,22 @@
 import { api } from "@shulstack/convex/_generated/api";
 import { fetchQuery } from "convex/nextjs";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-export const dynamic = "force-dynamic";
+// Public pages are cached and revalidated instead of rendered per request;
+// a publish shows up within five minutes.
+export const revalidate = 300;
 
 type SiteIndexProps = {
   params: Promise<{ slug: string }>;
 };
+
+export async function generateMetadata({ params }: SiteIndexProps): Promise<Metadata> {
+  const { slug } = await params;
+  const site = await fetchQuery(api.content.listPublishedPages, { institutionSlug: slug });
+  return site === null ? {} : { title: site.institutionName };
+}
 
 /** Public index of an institution's published pages. */
 export default async function PublicSiteIndex({ params }: SiteIndexProps) {

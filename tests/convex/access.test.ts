@@ -63,7 +63,9 @@ describe("authentication gates", () => {
         paginationOpts: firstPage,
       }),
     ).rejects.toThrow(/access/);
-    await expect(ownerB.as.query(api.crm.getHousehold, { householdId })).rejects.toThrow(/access/);
+    // Doc-scoped reads answer null for another tenant's ID, exactly as if it
+    // did not exist, so IDs cannot be probed for existence.
+    expect(await ownerB.as.query(api.crm.getHousehold, { householdId })).toBeNull();
     await expect(
       ownerB.as.mutation(api.crm.updateHousehold, { householdId, displayName: "Hijacked" }),
     ).rejects.toThrow(/access/);
@@ -71,7 +73,6 @@ describe("authentication gates", () => {
       ownerB.as.mutation(api.finance.recordBalanceSnapshot, {
         householdId,
         asOfDate: "2026-07-01",
-        balanceMinor: 100,
       }),
     ).rejects.toThrow(/access/);
   });
@@ -180,6 +181,45 @@ describe("role enforcement", () => {
     await expect(
       staffer.as.query(api.crm.listHouseholds, { institutionId, paginationOpts: firstPage }),
     ).rejects.toThrow(/access/);
+  });
+
+  test("only the owner can demote or deactivate an admin", async () => {
+    const { t, owner, institutionId } = await setUpWithStaff();
+    const adminOne = await signUp(t, "admin-one@example.com");
+    await signUp(t, "admin-two@example.com");
+    for (const email of ["admin-one@example.com", "admin-two@example.com"]) {
+      await owner.as.mutation(api.platform.addStaffByEmail, {
+        institutionId,
+        email,
+        role: "admin",
+      });
+    }
+    const staffList = await owner.as.query(api.platform.listStaff, { institutionId });
+    const adminTwoRow = staffList.find((member) => member.email === "admin-two@example.com");
+    if (adminTwoRow === undefined) throw new Error("unreachable");
+
+    await expect(
+      adminOne.as.mutation(api.platform.addStaffByEmail, {
+        institutionId,
+        email: "admin-two@example.com",
+        role: "staff",
+      }),
+    ).rejects.toThrow(/owner/);
+    await expect(
+      adminOne.as.mutation(api.platform.setStaffActive, {
+        staffMemberId: adminTwoRow.staffMemberId,
+        isActive: false,
+      }),
+    ).rejects.toThrow(/owner/);
+
+    // The owner can do both.
+    await owner.as.mutation(api.platform.addStaffByEmail, {
+      institutionId,
+      email: "admin-two@example.com",
+      role: "staff",
+    });
+    const after = await owner.as.query(api.platform.listStaff, { institutionId });
+    expect(after.find((member) => member.email === "admin-two@example.com")?.role).toBe("staff");
   });
 
   test("the owner cannot be deactivated and admins cannot deactivate themselves", async () => {

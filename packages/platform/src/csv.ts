@@ -48,6 +48,10 @@ export function parseCsv(text: string): string[][] {
       sawAnything = true;
     }
   }
+  if (inQuotes) {
+    // Without this, one stray quote silently swallows the rest of the file.
+    throw new RangeError("Unterminated quoted field in CSV input.");
+  }
   if (sawAnything || field !== "") {
     row.push(field);
     rows.push(row);

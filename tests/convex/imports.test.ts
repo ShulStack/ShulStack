@@ -36,6 +36,18 @@ describe("ShulCloud import", () => {
     return mapPeopleCsv(PEOPLE_CSV).people;
   }
 
+  test("rejects oversized batches", async () => {
+    const oversized = Array.from({ length: 101 }, (_, index) => ({
+      externalId: `acct-${index}`,
+      displayName: `Household ${index}`,
+      isActive: true,
+      metadata: {},
+    }));
+    await expect(
+      admin.as.mutation(api.imports.importAccounts, { institutionId, accounts: oversized }),
+    ).rejects.toThrow(/limited/);
+  });
+
   test("imports accounts with balances, addresses, and contact points", async () => {
     const result = await admin.as.mutation(api.imports.importAccounts, {
       institutionId,

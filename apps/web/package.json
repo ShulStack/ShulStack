@@ -2,6 +2,9 @@
   "name": "@shulstack/web",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "build": "next build --webpack",
     "dev": "next dev --webpack",

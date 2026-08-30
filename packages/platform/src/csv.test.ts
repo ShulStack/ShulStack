@@ -24,6 +24,10 @@ describe("parseCsv", () => {
     ]);
   });
 
+  test("throws on an unterminated quoted field instead of truncating", () => {
+    expect(() => parseCsv('a,b\n"unclosed,2')).toThrow(/[Uu]nterminated/);
+  });
+
   test("keeps empty cells positional", () => {
     expect(parseCsv("a,,c")).toEqual([["a", "", "c"]]);
   });

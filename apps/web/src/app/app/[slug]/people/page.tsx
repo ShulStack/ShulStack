@@ -30,6 +30,7 @@ function CreatePersonForm({ institutionId }: { institutionId: Id<"institutions">
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
   return (
     <Card>
@@ -38,12 +39,14 @@ function CreatePersonForm({ institutionId }: { institutionId: Id<"institutions">
         onSubmit={(event) => {
           event.preventDefault();
           setError(null);
+          setPending(true);
           createPerson({ institutionId, firstName, lastName })
             .then(() => {
               setFirstName("");
               setLastName("");
             })
-            .catch((caught) => setError(errorMessage(caught)));
+            .catch((caught) => setError(errorMessage(caught)))
+            .finally(() => setPending(false));
         }}
       >
         <Field label="First name">
@@ -61,7 +64,9 @@ function CreatePersonForm({ institutionId }: { institutionId: Id<"institutions">
             <input id={id} onChange={(event) => setLastName(event.target.value)} value={lastName} />
           )}
         </Field>
-        <Button type="submit">Add person</Button>
+        <Button disabled={pending} type="submit">
+          Add person
+        </Button>
       </form>
       {error === null ? null : <p className="form-error">{error}</p>}
     </Card>

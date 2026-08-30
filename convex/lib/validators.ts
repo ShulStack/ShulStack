@@ -1,5 +1,5 @@
 import { MODULES } from "@shulstack/platform";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 /**
  * Free-form JSON bag reserved for import fidelity and module-specific edge
@@ -10,6 +10,38 @@ export const metadataValidator = v.record(v.string(), v.any());
 /** ISO 8601 calendar date, e.g. "2026-03-29". Timezone-free by design. */
 export const isoDate = v.string();
 export const optionalIsoDate = v.optional(isoDate);
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Runtime check for ISO calendar dates (Convex validators cannot express
+ * formats). Dates order lexicographically, so malformed values would corrupt
+ * balance-as-of comparisons; every mutation that accepts a date calls this.
+ */
+export function assertIsoDate(value: string): void {
+  if (!ISO_DATE_PATTERN.test(value)) {
+    throw new ConvexError(`Dates must be in YYYY-MM-DD format, got ${JSON.stringify(value)}.`);
+  }
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    throw new ConvexError(`Not a real calendar date: ${value}.`);
+  }
+}
+
+const CURRENCY_PATTERN = /^[A-Za-z]{3}$/;
+
+/** Validate an ISO 4217-shaped currency code and return it uppercased. */
+export function normalizeCurrency(value: string): string {
+  if (!CURRENCY_PATTERN.test(value)) {
+    throw new ConvexError(`Currency must be a three-letter code, got ${JSON.stringify(value)}.`);
+  }
+  return value.toUpperCase();
+}
 
 export const staffRoleValidator = v.union(
   v.literal("owner"),

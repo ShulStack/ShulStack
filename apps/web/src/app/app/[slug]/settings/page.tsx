@@ -2,6 +2,7 @@
 
 import { api } from "@shulstack/convex/_generated/api";
 import type { Id } from "@shulstack/convex/_generated/dataModel";
+import type { ModuleSlug } from "@shulstack/platform";
 import { Badge, Button, Card, Field, PageHeader } from "@shulstack/ui";
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
@@ -108,7 +109,7 @@ function InstitutionForm({
 }
 
 type WorkspaceModule = {
-  slug: string;
+  slug: ModuleSlug;
   label: string;
   description: string;
   enabled: boolean;
@@ -131,30 +132,29 @@ function ModulesCard({
       {error === null ? null : <p className="form-error">{error}</p>}
       <div className="module-grid">
         {modules.map((module) => (
-          <label
-            className={module.enabled ? "module-tile enabled" : "module-tile"}
-            key={module.slug}
-          >
+          <div className={module.enabled ? "module-tile enabled" : "module-tile"} key={module.slug}>
             <div className="module-tile-header">
-              <h3>{module.label}</h3>
+              <h3 id={`module-${module.slug}-label`}>{module.label}</h3>
               <input
+                aria-describedby={`module-${module.slug}-description`}
+                aria-labelledby={`module-${module.slug}-label`}
                 checked={module.enabled}
                 disabled={!canAdminister}
                 onChange={(event) => {
                   setError(null);
                   setModuleEnabled({
                     institutionId,
-                    // Workspace modules come from the platform registry, so the
-                    // slug is always a valid ModuleSlug.
-                    moduleSlug: module.slug as never,
+                    moduleSlug: module.slug,
                     enabled: event.target.checked,
                   }).catch((caught) => setError(errorMessage(caught)));
                 }}
                 type="checkbox"
               />
             </div>
-            <p className="muted">{module.description}</p>
-          </label>
+            <p className="muted" id={`module-${module.slug}-description`}>
+              {module.description}
+            </p>
+          </div>
         ))}
       </div>
     </Card>

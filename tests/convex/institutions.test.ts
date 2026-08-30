@@ -48,6 +48,19 @@ describe("institution lifecycle", () => {
     ).rejects.toThrow(/already exists/);
   });
 
+  test("ALLOW_NEW_INSTITUTIONS=false closes institution creation", async () => {
+    vi.stubEnv("ALLOW_NEW_INSTITUTIONS", "false");
+    try {
+      const t = createBackend();
+      const user = await signUp(t, "founder@example.com");
+      await expect(
+        user.as.mutation(api.platform.createInstitution, { slug: "closed", name: "Closed" }),
+      ).rejects.toThrow(/not accepting/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   test("module toggles persist and are audited", async () => {
     const t = createBackend();
     const owner = await signUp(t, "founder@example.com");

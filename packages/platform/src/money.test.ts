@@ -41,7 +41,21 @@ describe("parseMoney", () => {
     expect(() => parseMoney("1.2.3")).toThrow(RangeError);
   });
 
+  test("parses negative amounts however the sign and symbol are ordered", () => {
+    expect(parseMoney("-$18.00")).toBe(-1800);
+    expect(parseMoney("$-18.00")).toBe(-1800);
+    expect(parseMoney("- $18.00")).toBe(-1800);
+    expect(() => parseMoney("1-2")).toThrow(RangeError);
+  });
+
+  test("three-decimal currencies parse and format at the right scale", () => {
+    expect(parseMoney("1.250", "KWD")).toBe(1250);
+    expect(() => parseMoney("1.2505", "KWD")).toThrow(/decimal/);
+    expect(formatMoney(1250, "KWD", "en-US")).toMatch(/1\.250/);
+  });
+
   test("round-trips with formatMoney", () => {
     expect(formatMoney(parseMoney("1,234.56"))).toBe("$1,234.56");
+    expect(parseMoney(formatMoney(-1800))).toBe(-1800);
   });
 });

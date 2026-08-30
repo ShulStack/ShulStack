@@ -1,37 +1,64 @@
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FShulStack%2FShulStack&project-name=shulstack&repository-name=shulstack&root-directory=apps%2Fweb&demo-title=ShulStack&demo-description=Open-source%20synagogue%20operating%20system&products=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22convex%22%2C%22productSlug%22%3A%22convex%22%2C%22protocol%22%3A%22storage%22%7D%5D) [![CI](https://github.com/ShulStack/ShulStack/actions/workflows/ci.yaml/badge.svg)](https://github.com/ShulStack/ShulStack/actions/workflows/ci.yaml)
+
 # ShulStack
 
-[![CI](https://github.com/ShulStack/ShulStack/actions/workflows/ci.yaml/badge.svg)](https://github.com/ShulStack/ShulStack/actions/workflows/ci.yaml)
-
 **The open-source operating system for synagogues.** A community-owned
-alternative to ShulCloud: membership CRM, billing records, a public website,
-and the ritual-calendar workflows generic tools never get right. MIT-licensed
-and built to be self-hosted.
+alternative to ShulCloud: membership CRM, a real financial ledger, a public
+website, and the ritual-calendar workflows generic tools never get right.
+MIT-licensed, one-click deployable, and built to be self-hosted.
+
+## Deploy in one click
+
+The **Deploy** button above creates everything: a Vercel project for the app
+and a [Convex](https://convex.dev) project for the database via the Vercel
+Marketplace — hosting and database billed in one Vercel account, auth keys
+generated automatically during the build. Click it, wait for the build, sign
+up, create your institution, and click **Load sample data**.
+
+Details, the demo-plus-production two-instance pattern, and troubleshooting:
+[docs/deploy-vercel.md](./docs/deploy-vercel.md).
 
 ## Status: early, honest
 
-The platform core works today and is covered by an automated test suite:
+The platform core works today and is covered by an automated test suite
+(100+ tests across the backend, domain packages, and UI):
 
 - **Institutions & staff** — multi-tenant workspaces with `owner` / `admin` /
   `staff` roles, enforced on every backend function, with an audit trail.
 - **CRM** — households, people (including Hebrew name fields), household
   membership with roles, search, and soft-deactivation.
 - **Finance ledger** — charges, payments, and credits that atomically move
-  household balances, plus dated balance snapshots. Money is integer minor
-  units end to end.
+  household balances. The ledger is the *only* writer of balances; snapshots
+  are derived, and an admin reconciliation check proves the books tie out.
+  Money is integer minor units end to end.
 - **ShulCloud import** — upload the accounts and people CSV exports and get
   households, people, memberships, contact info, and opening balances.
   Re-running an import updates records instead of duplicating them.
 - **Website** — per-institution pages with a block editor and
-  draft/publish/archive flow, served on a public site route with an index.
-- **Domain events** — mutations emit events (`household.created`, …) that are
-  processed by an idempotent, retrying background processor.
+  draft/publish/archive flow, served on a cached public site route.
+- **Domain events** — mutations emit events (`household.created`, …)
+  processed by an idempotent, self-draining background processor with a
+  failed-event requeue path.
 - **Sample data** — one click loads a realistic demo dataset into an empty
   institution.
 
 Most of the module registry (events, yahrzeits, seating, school, …) is
 roadmap, not product. See [docs/roadmap.md](./docs/roadmap.md).
 
-## Quickstart
+## The stack (radically simple)
+
+- **Backend**: [Convex](https://convex.dev) — database, functions, realtime,
+  scheduler, and auth in one deployable unit. The entire backend is the
+  `convex/` directory.
+- **Auth**: [Convex Auth](https://labs.convex.dev/auth) with a password
+  provider — no external auth service.
+- **Frontend**: Next.js 16 + React 19. Styling is one hand-written global
+  stylesheet with CSS variables — no Tailwind, no component framework;
+  `packages/ui` is seven small in-repo React primitives.
+- **Monorepo**: pnpm + Turborepo; toolchain pinned with Hermit; Biome for
+  lint/format; Vitest + `convex-test` for the test suite.
+
+## Quickstart (local)
 
 Toolchain (node, pnpm, task) is pinned via [Hermit](https://cashapp.github.io/hermit/) — no global installs needed.
 
@@ -67,8 +94,9 @@ institution, and click **Load sample data**.
 
 ## Self-hosting
 
-The production-like stack runs the official self-hosted Convex backend in
-Docker alongside the app:
+Beyond Vercel, the repo ships a Docker stack that runs the official
+self-hosted Convex backend alongside the app (note: the web container
+currently runs the dev server — a production image is on the roadmap):
 
 ```sh
 docker compose up -d convex-backend convex-dashboard mailpit
@@ -93,12 +121,14 @@ convex              The entire backend: schema, functions, auth, crons, seed
 convex/lib          Access control, audit logging, domain-event processing
 packages/platform   Shared pure domain code: module registry, money, names, slugs
 packages/ui         Shared presentational React components
+scripts             Vercel build entrypoint + Convex Auth key setup
 tests/convex        Backend test suite (convex-test)
-docs                Architecture, data model, roadmap
+docs                Architecture, data model, deployment, roadmap
 ```
 
 Architecture rationale lives in [docs/architecture.md](./docs/architecture.md);
-the CRM data model in [docs/data-model.md](./docs/data-model.md).
+the CRM data model in [docs/data-model.md](./docs/data-model.md); Vercel
+deployment in [docs/deploy-vercel.md](./docs/deploy-vercel.md).
 
 ## Contributing
 

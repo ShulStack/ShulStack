@@ -20,6 +20,13 @@ const CURRENCY_DECIMALS: Record<string, number> = {
   XAF: 0,
   XOF: 0,
   XPF: 0,
+  BHD: 3,
+  IQD: 3,
+  JOD: 3,
+  KWD: 3,
+  LYD: 3,
+  OMR: 3,
+  TND: 3,
 };
 
 export function currencyDecimals(currency: string): number {
@@ -53,7 +60,9 @@ const AMOUNT_PATTERN = /^([-+]?)(\d+)(?:\.(\d+))?$/;
  * supports.
  */
 export function parseMoney(input: string, currency = "USD"): number {
-  const cleaned = input.replace(/[,\s]/g, "").replace(/^[^\d+-]+/, "");
+  // Drop a currency-symbol prefix while keeping the sign, wherever the sign
+  // sits relative to the symbol ("-$18.00" and "$-18.00" both parse).
+  const cleaned = input.replace(/[,\s]/g, "").replace(/^([-+]?)[^\d+-]+/, "$1");
   const match = AMOUNT_PATTERN.exec(cleaned);
   if (match === null) {
     throw new RangeError(`Not a valid amount: ${JSON.stringify(input)}`);

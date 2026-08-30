@@ -7,27 +7,32 @@ supports imports, operational workflows, and future modules.
 
 ## Core tables
 
+Tables marked *reserved* are in the schema for modules that haven't landed
+yet — no code reads or writes them today.
+
 | Table | Holds |
 | --- | --- |
 | `institutions` | The tenant: one congregation per row |
 | `staffMembers` | Auth user ↔ institution with `owner`/`admin`/`staff` role |
-| `personUserLinks` | Auth user ↔ CRM person (member portal, future) |
+| `personUserLinks` | Auth user ↔ CRM person (member portal — *reserved*) |
 | `moduleEnablement` | Which modules are switched on per institution |
 | `auditLogs` | Who changed what (written only inside mutations) |
 | `domainEvents` | Facts to react to, with retry/attempt tracking |
 | `households` | The household / billing unit |
 | `people` | The individual, including Hebrew name and lifecycle fields |
 | `householdMembers` | Person ↔ household with role and contact flags |
-| `householdAddresses` / `personAddresses` | Structured postal addresses |
+| `householdAddresses` | Structured postal addresses (written by the importer) |
+| `personAddresses` | Person-level addresses (*reserved*) |
 | `householdContactPoints` / `personContactPoints` | Typed emails and phones |
-| `personAffiliations` | Employers and schools |
-| `personLifecycleEvents` | B'nei mitzvah, weddings, deaths, … with Hebrew dates |
-| `tags` / `tagAssignments` | Reusable labels on any entity |
+| `personAffiliations` | Employers and schools (*reserved*) |
+| `personLifecycleEvents` | B'nei mitzvah, weddings, deaths, … (*reserved*) |
+| `tags` / `tagAssignments` | Reusable labels on any entity (*reserved*) |
 | `externalReferences` | Source-system ids (ShulCloud ids, billing ids) |
-| `householdBillingProfiles` | Delivery method, discounts, live balance |
-| `householdBalanceSnapshots` | Dated balance history |
-| `ledgerEntries` | Immutable charges/payments/credits/opening balances; each entry atomically moves the profile balance |
-| `pages` / `siteSettings` / `media` | Per-institution site content |
+| `householdBillingProfiles` | Delivery method, discounts, and the live balance (maintained only by the ledger) |
+| `householdBalanceSnapshots` | Dated snapshots derived from the ledger |
+| `ledgerEntries` | Immutable charges/payments/credits/opening balances; each entry atomically moves the profile balance, and `finance.reconcileBalances` verifies the sum |
+| `pages` / `siteSettings` | Per-institution site content |
+| `media` | Site media library (*reserved*) |
 
 Plus the Convex Auth tables (`users`, `authSessions`, …) via `authTables`.
 

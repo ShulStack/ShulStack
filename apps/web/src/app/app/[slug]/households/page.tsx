@@ -32,6 +32,7 @@ function CreateHouseholdForm({ institutionId }: { institutionId: Id<"institution
   const createHousehold = useMutation(api.crm.createHousehold);
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
   return (
     <Card>
@@ -40,9 +41,11 @@ function CreateHouseholdForm({ institutionId }: { institutionId: Id<"institution
         onSubmit={(event) => {
           event.preventDefault();
           setError(null);
+          setPending(true);
           createHousehold({ institutionId, displayName })
             .then(() => setDisplayName(""))
-            .catch((caught) => setError(errorMessage(caught)));
+            .catch((caught) => setError(errorMessage(caught)))
+            .finally(() => setPending(false));
         }}
       >
         <Field label="New household">
@@ -56,7 +59,9 @@ function CreateHouseholdForm({ institutionId }: { institutionId: Id<"institution
             />
           )}
         </Field>
-        <Button type="submit">Add household</Button>
+        <Button disabled={pending} type="submit">
+          Add household
+        </Button>
       </form>
       {error === null ? null : <p className="form-error">{error}</p>}
     </Card>

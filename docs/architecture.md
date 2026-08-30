@@ -7,9 +7,10 @@ one authorization model. This document records the load-bearing decisions.
 
 ```
 apps/web (Next.js)
-  ├─ /                      public landing page
-  ├─ /app/...               staff dashboard (client components, live queries)
-  └─ /sites/[slug]/[page]   public CMS pages (server-rendered per request)
+  ├─ /                      public landing page (static)
+  ├─ /app/...               staff dashboard (client components, live queries;
+  │                         auth + Convex providers mount here, not globally)
+  └─ /sites/[slug]/[page]   public CMS pages (cached, revalidated every 5 min)
 
 convex/ (the entire backend)
   ├─ schema.ts              all tables + indexes
@@ -43,12 +44,21 @@ and lives in one place:
   and the test suite asserts cross-tenant denial.
 - Role rules: staff read/write CRM and finance records; admins manage
   modules, settings, content, and staff; only the owner grants the admin
-  role; ownership is not transferable through the API (yet).
+  role or changes an existing admin's role/access; ownership is not
+  transferable through the API (yet).
 - `personUserLinks` (member portal, future) is deliberately separate from
   `staffMembers`: being staff and being a member are independent facts.
+- **Known trade-off:** `addStaffByEmail` grants access by email match, and
+  the password provider does not verify email ownership. Admins must only
+  add addresses they have confirmed out-of-band; token-based invite links
+  are on the roadmap.
 
-Public reads (published CMS pages) are the only unauthenticated functions,
-and they are read-only and status-gated.
+Unauthenticated function surface: published CMS page reads (status-gated,
+and dark when the website module is off), plus identity-reflection queries
+(`users.current`, `platform.listMyInstitutions`, `platform.getWorkspace`)
+that return null/empty when signed out. `platform.createInstitution` needs
+only a signed-in user; single-community deployments close it by setting
+`ALLOW_NEW_INSTITUTIONS=false` on the Convex deployment.
 
 ## Audit log and domain events
 
@@ -59,11 +69,13 @@ no client-callable "write audit log" endpoint, so the trail cannot be forged.
   before/after summaries.
 - **Domain events** are facts for the system to react to
   (`household.created`, `membership.changed`, …). `emitDomainEvent` inserts
-  the event and schedules near-immediate processing; a cron sweeps every few
-  minutes as the retry path. Handlers must be idempotent (Convex has no
-  sub-transactions, so a failed handler may leave partial writes behind
-  before its retry). After `MAX_EVENT_ATTEMPTS` failures an event lands in
-  `failed` with the error recorded.
+  the event and schedules a drain only when the pending queue was empty; the
+  processor reschedules itself while batches stay full, and a cron sweeps
+  every few minutes as the retry path. Handlers must be idempotent (Convex
+  has no sub-transactions, so a failed handler may leave partial writes
+  behind before its retry). After `MAX_EVENT_ATTEMPTS` failures an event
+  lands in `failed` with the error recorded; admins can inspect and requeue
+  via `events.listFailedEvents` / `events.retryFailedEvent`.
 
 The first real handler provisions a billing profile for every new household,
 so finance flows never see a missing profile.
@@ -73,6 +85,11 @@ so finance flows never see a missing profile.
 - **Money** is integer minor units (`balanceMinor`), never floats or strings.
   Parsing/formatting live in `@shulstack/platform` (`parseMoney`,
   `formatMoney`) and are string/BigInt-based.
+- **The ledger owns balances.** `recordLedgerEntry` is the only code path
+  that moves `balanceMinor`; snapshots are derived records and billing
+  profiles carry preferences only. `finance.reconcileBalances` compares
+  every profile against its ledger sum, and `finance.repairHouseholdBalance`
+  is the sanctioned fix.
 - **Timestamps**: Convex's built-in `_creationTime` is the creation
   timestamp; tables carry `updatedAt` only when rows mutate. Calendar dates
   (joins, birthdays, balance as-of) are ISO `YYYY-MM-DD` strings — they are

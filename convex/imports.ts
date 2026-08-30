@@ -1,5 +1,5 @@
 import { buildPersonDisplayName } from "@shulstack/platform";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
@@ -21,6 +21,18 @@ import { genderValidator, householdMemberRoleValidator } from "./lib/validators"
 
 const SYSTEM = "shulcloud";
 const IMPORT_SOURCE = { source: SYSTEM };
+
+// The web importer sends 50-row chunks; the cap keeps direct API calls from
+// blowing Convex's per-mutation limits with a whole CSV in one batch.
+const MAX_IMPORT_ROWS = 100;
+
+function assertBatchSize(rows: number): void {
+  if (rows > MAX_IMPORT_ROWS) {
+    throw new ConvexError(
+      `Import batches are limited to ${MAX_IMPORT_ROWS} rows; send smaller chunks.`,
+    );
+  }
+}
 
 const importedAccountValidator = v.object({
   externalId: v.string(),
@@ -100,6 +112,8 @@ async function findExternalRef(
   referenceType: string,
   value: string,
 ): Promise<Doc<"externalReferences"> | null> {
+  // .first() rather than .unique(): a duplicate reference row (from a crash
+  // mid-import) should degrade to "pick one", not poison every future import.
   return await ctx.db
     .query("externalReferences")
     .withIndex("by_external_value", (q) =>
@@ -109,7 +123,7 @@ async function findExternalRef(
         .eq("referenceType", referenceType)
         .eq("value", value),
     )
-    .unique();
+    .first();
 }
 
 function todayIso(): string {
@@ -123,6 +137,7 @@ export const importAccounts = mutation({
   },
   handler: async (ctx, args) => {
     const { userId } = await requireStaff(ctx, args.institutionId, "admin");
+    assertBatchSize(args.accounts.length);
     let created = 0;
     let updated = 0;
 
@@ -145,6 +160,9 @@ export const importAccounts = mutation({
       if (ref !== null) {
         const householdId = ctx.db.normalizeId("households", ref.entityId);
         household = householdId === null ? null : await ctx.db.get(householdId);
+        if (household !== null && household.institutionId !== args.institutionId) {
+          household = null; // Never write across institutions, even via a bad ref.
+        }
       }
 
       if (household !== null) {
@@ -153,7 +171,7 @@ export const importAccounts = mutation({
           metadata: { ...household.metadata, [SYSTEM]: account.metadata },
           updatedAt: now,
         });
-        await replaceHouseholdContacts(ctx, household._id, household.institutionId, account);
+        await replaceHouseholdContacts(ctx, household._id, args.institutionId, account);
         updated += 1;
       } else {
         const householdId = await ctx.db.insert("households", {
@@ -213,6 +231,7 @@ export const importPeople = mutation({
   },
   handler: async (ctx, args) => {
     const { userId } = await requireStaff(ctx, args.institutionId, "admin");
+    assertBatchSize(args.people.length);
     let created = 0;
     let updated = 0;
     const warnings: string[] = [];
@@ -233,6 +252,9 @@ export const importPeople = mutation({
         const householdId =
           accountRef === null ? null : ctx.db.normalizeId("households", accountRef.entityId);
         household = householdId === null ? null : await ctx.db.get(householdId);
+        if (household !== null && household.institutionId !== args.institutionId) {
+          household = null;
+        }
         if (household === null && warnings.length < 50) {
           warnings.push(
             `Person ${imported.externalId}: account ${imported.accountExternalId} not imported yet`,
@@ -270,6 +292,9 @@ export const importPeople = mutation({
       if (ref !== null) {
         const personId = ctx.db.normalizeId("people", ref.entityId);
         person = personId === null ? null : await ctx.db.get(personId);
+        if (person !== null && person.institutionId !== args.institutionId) {
+          person = null;
+        }
       }
 
       let personId: Id<"people">;

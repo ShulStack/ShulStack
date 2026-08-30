@@ -209,6 +209,11 @@ function consuming(record: Record<string, string>, consumed: Set<string>) {
   };
 }
 
+/** A whole-file parse failure, reported as an issue on the header row. */
+function fileIssue(error: unknown): RowIssue {
+  return { row: 1, message: error instanceof Error ? error.message : String(error) };
+}
+
 // --- Accounts ------------------------------------------------------------------
 
 const ACCOUNT_ID_ALIASES = ["id", "account_id", "account_number"];
@@ -230,6 +235,7 @@ export function mapAccountRow(
     return { issue: { row: rowNumber, message: `Account ${externalId} has no name` } };
   }
 
+  const resignedAt = parseImportDate(take(["date_resigned", "resigned"]));
   const account: ImportedAccount = {
     externalId,
     displayName,
@@ -239,8 +245,9 @@ export function mapAccountRow(
     billingMailLabel: take(["billing_mail_label"]),
     addedAt: parseImportDate(take(["date_added", "added"])),
     joinedAt: parseImportDate(take(["date_joined", "joined"])),
-    resignedAt: parseImportDate(take(["date_resigned", "resigned"])),
-    isActive: parseImportBoolean(take(["is_active", "active"]), true),
+    resignedAt,
+    // Without an explicit active flag, a resignation date means inactive.
+    isActive: parseImportBoolean(take(["is_active", "active"]), resignedAt === undefined),
     openingBalanceMinor: parseImportMoney(take(["balance", "current_balance", "account_balance"])),
     address: {
       address1: take(["address", "address_1", "address1", "street"]),
@@ -267,7 +274,13 @@ export function mapAccountsCsv(text: string): {
 } {
   const accounts: ImportedAccount[] = [];
   const issues: RowIssue[] = [];
-  csvToRecords(text).forEach((record, index) => {
+  let records: Record<string, string>[];
+  try {
+    records = csvToRecords(text);
+  } catch (error) {
+    return { accounts, issues: [fileIssue(error)] };
+  }
+  records.forEach((record, index) => {
     if (Object.keys(record).length === 0) {
       return; // blank line
     }
@@ -331,6 +344,7 @@ export function mapPersonRow(
   }
 
   const roleLabel = take(["relationship", "role", "household_role"]);
+  const isDeceased = parseImportBoolean(take(["deceased", "is_deceased"]), false);
   const person: ImportedPerson = {
     externalId,
     accountExternalId: take(PERSON_ACCOUNT_ALIASES),
@@ -356,8 +370,9 @@ export function mapPersonRow(
       take(["eligible_for_aliya", "eligible_for_aliyah"]),
       true,
     ),
-    isDeceased: parseImportBoolean(take(["deceased", "is_deceased"]), false),
-    isActive: parseImportBoolean(take(["is_active", "active"]), true),
+    isDeceased,
+    // Without an explicit active flag, deceased people import as inactive.
+    isActive: parseImportBoolean(take(["is_active", "active"]), !isDeceased),
     memberRole: parseImportRole(roleLabel),
     sourceRoleLabel: roleLabel,
     isPrimaryContact: parseImportBoolean(take(["is_primary_contact", "primary_contact"]), false),
@@ -373,7 +388,13 @@ export function mapPersonRow(
 export function mapPeopleCsv(text: string): { people: ImportedPerson[]; issues: RowIssue[] } {
   const people: ImportedPerson[] = [];
   const issues: RowIssue[] = [];
-  csvToRecords(text).forEach((record, index) => {
+  let records: Record<string, string>[];
+  try {
+    records = csvToRecords(text);
+  } catch (error) {
+    return { people, issues: [fileIssue(error)] };
+  }
+  records.forEach((record, index) => {
     if (Object.keys(record).length === 0) {
       return;
     }

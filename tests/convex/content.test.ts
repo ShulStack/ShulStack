@@ -76,6 +76,67 @@ describe("site content", () => {
     expect(audit[0]).toMatchObject({ entityType: "page", entityId: "news", action: "publish" });
   });
 
+  test("page slugs are validated server-side", async () => {
+    const t = createBackend();
+    const owner = await signUp(t, "owner@example.com");
+    const institutionId = await createInstitutionAs(owner.as, "beth-demo", "Beth Demo");
+
+    for (const slug of ["Bad Slug!", "", "UPPER", "a/../b"]) {
+      await expect(
+        owner.as.mutation(api.content.upsertPage, { institutionId, slug, title: "X" }),
+      ).rejects.toThrow(/[Ss]lug/);
+    }
+  });
+
+  test("an empty string clears optional page fields", async () => {
+    const t = createBackend();
+    const owner = await signUp(t, "owner@example.com");
+    const institutionId = await createInstitutionAs(owner.as, "beth-demo", "Beth Demo");
+
+    await owner.as.mutation(api.content.upsertPage, {
+      institutionId,
+      slug: "about",
+      title: "About",
+      summary: "A summary",
+      status: "published",
+    });
+    await owner.as.mutation(api.content.upsertPage, {
+      institutionId,
+      slug: "about",
+      title: "About",
+      summary: "",
+    });
+    const page = await t.query(api.content.getPublishedPage, {
+      institutionSlug: "beth-demo",
+      slug: "about",
+    });
+    expect(page?.summary).toBeUndefined();
+  });
+
+  test("disabling the website module unpublishes the public site", async () => {
+    const t = createBackend();
+    const owner = await signUp(t, "owner@example.com");
+    const institutionId = await createInstitutionAs(owner.as, "beth-demo", "Beth Demo");
+
+    await owner.as.mutation(api.content.upsertPage, {
+      institutionId,
+      slug: "about",
+      title: "About",
+      status: "published",
+    });
+    await owner.as.mutation(api.platform.setModuleEnabled, {
+      institutionId,
+      moduleSlug: "cms",
+      enabled: false,
+    });
+    expect(
+      await t.query(api.content.getPublishedPage, { institutionSlug: "beth-demo", slug: "about" }),
+    ).toBeNull();
+    expect(
+      await t.query(api.content.listPublishedPages, { institutionSlug: "beth-demo" }),
+    ).toBeNull();
+  });
+
   test("site settings are institution-scoped key/value documents", async () => {
     const t = createBackend();
     const owner = await signUp(t, "owner@example.com");

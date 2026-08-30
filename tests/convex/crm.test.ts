@@ -226,4 +226,38 @@ describe("sample data seed", () => {
       /empty institution/,
     );
   });
+
+  test("requires the admin role", async () => {
+    const t = createBackend();
+    const owner = await signUp(t, "owner@example.com");
+    const institutionId = await createInstitutionAs(owner.as);
+    const staffer = await signUp(t, "staff@example.com");
+    await owner.as.mutation(api.platform.addStaffByEmail, {
+      institutionId,
+      email: "staff@example.com",
+      role: "staff",
+    });
+    await expect(staffer.as.mutation(api.seed.loadSampleData, { institutionId })).rejects.toThrow(
+      /admin/,
+    );
+  });
+
+  test("keeps an existing welcome page instead of duplicating the slug", async () => {
+    const t = createBackend();
+    const owner = await signUp(t, "owner@example.com");
+    const institutionId = await createInstitutionAs(owner.as);
+    await owner.as.mutation(api.content.upsertPage, {
+      institutionId,
+      slug: "welcome",
+      title: "Handwritten Welcome",
+      status: "published",
+    });
+
+    await owner.as.mutation(api.seed.loadSampleData, { institutionId });
+    await settleScheduled(t);
+
+    const pages = await owner.as.query(api.content.listPages, { institutionId });
+    expect(pages.filter((page) => page.slug === "welcome")).toHaveLength(1);
+    expect(pages.find((page) => page.slug === "welcome")?.title).toBe("Handwritten Welcome");
+  });
 });

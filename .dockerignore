@@ -7,3 +7,12 @@ node_modules
 .task
 .turbo
 *.log
+# Never bake local secrets, local Convex state, or toolchain into images.
+.env
+.env.*
+**/.env
+**/.env.*
+.convex
+.hermit
+.vercel
+bin

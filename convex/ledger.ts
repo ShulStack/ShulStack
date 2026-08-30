@@ -8,13 +8,12 @@ import { requireStaff } from "./lib/access";
 import { logAudit } from "./lib/audit";
 import { emitDomainEvent } from "./lib/domainEvents";
 import {
+  assertIsoDate,
   isoDate,
   type LedgerEntryType,
   ledgerEntryTypeValidator,
   metadataValidator,
 } from "./lib/validators";
-
-const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Signed effect of an entry on the household balance (positive = owes more). */
 export function ledgerDelta(entryType: LedgerEntryType, amountMinor: number): number {
@@ -57,9 +56,7 @@ export async function recordLedgerEntry(
   if (input.entryType !== "opening_balance" && input.amountMinor <= 0) {
     throw new ConvexError("Charges, payments, and credits must be positive amounts.");
   }
-  if (!ISO_DATE_PATTERN.test(input.occurredAt)) {
-    throw new ConvexError("Dates must be in YYYY-MM-DD format.");
-  }
+  assertIsoDate(input.occurredAt);
 
   const now = Date.now();
   const entryId = await ctx.db.insert("ledgerEntries", {

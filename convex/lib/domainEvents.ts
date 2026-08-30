@@ -51,14 +51,25 @@ type DomainEventInput = {
  * Record a domain event and schedule near-immediate processing. Events are
  * facts about what happened; they are only ever written by mutations, never
  * by clients directly.
+ *
+ * Scheduling is deduplicated: a drain is only scheduled when the pending
+ * queue was empty, and the processor reschedules itself while it keeps
+ * finding full batches. Events whose attempt failed are re-driven by the
+ * cron sweeper instead.
  */
 export async function emitDomainEvent(ctx: MutationCtx, event: DomainEventInput): Promise<void> {
+  const alreadyPending = await ctx.db
+    .query("domainEvents")
+    .withIndex("by_status", (q) => q.eq("status", "pending"))
+    .first();
   await ctx.db.insert("domainEvents", {
     ...event,
     status: "pending",
     attempts: 0,
   });
-  await ctx.scheduler.runAfter(0, internal.events.processPendingEvents, {});
+  if (alreadyPending === null) {
+    await ctx.scheduler.runAfter(0, internal.events.processPendingEvents, {});
+  }
 }
 
 /** Process one event, recording success or a retryable/terminal failure. */

@@ -98,6 +98,13 @@ export const createInstitution = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
+    // Operators of single-community deployments can close signups by setting
+    // ALLOW_NEW_INSTITUTIONS=false on the Convex deployment.
+    if (process.env.ALLOW_NEW_INSTITUTIONS === "false") {
+      throw new ConvexError(
+        "This server is not accepting new institutions. Ask the operator for access.",
+      );
+    }
     const slug = args.slug.trim();
     const name = args.name.trim();
     if (!isValidSlug(slug)) {
@@ -258,7 +265,7 @@ export const addStaffByEmail = mutation({
     const user = await ctx.db
       .query("users")
       .withIndex("email", (q) => q.eq("email", email))
-      .first();
+      .unique();
     if (user === null) {
       throw new ConvexError(
         "No account with that email. Ask them to sign up first, then add them.",
@@ -275,6 +282,10 @@ export const addStaffByEmail = mutation({
     if (existing !== null) {
       if (existing.role === "owner") {
         throw new ConvexError("That person is the owner.");
+      }
+      // Admins are peers: only the owner can demote one.
+      if (existing.role === "admin" && args.role !== "admin" && !roleAtLeast(staff.role, "owner")) {
+        throw new ConvexError("Only the owner can change an admin's role.");
       }
       await ctx.db.patch(existing._id, { role: args.role, isActive: true, updatedAt: now });
     } else {
@@ -307,12 +318,15 @@ export const setStaffActive = mutation({
     if (target === null) {
       throw new ConvexError("Staff member not found.");
     }
-    const { userId } = await requireStaff(ctx, target.institutionId, "admin");
+    const { userId, staff } = await requireStaff(ctx, target.institutionId, "admin");
     if (target.role === "owner") {
       throw new ConvexError("The owner cannot be deactivated.");
     }
     if (target.userId === userId) {
       throw new ConvexError("You cannot deactivate yourself.");
+    }
+    if (target.role === "admin" && !roleAtLeast(staff.role, "owner")) {
+      throw new ConvexError("Only the owner can change an admin's access.");
     }
     await ctx.db.patch(target._id, { isActive: args.isActive, updatedAt: Date.now() });
     await logAudit(ctx, {

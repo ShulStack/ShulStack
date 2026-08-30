@@ -95,7 +95,11 @@ export const loadSampleData = mutation({
       .query("households")
       .withIndex("by_institution", (q) => q.eq("institutionId", args.institutionId))
       .first();
-    if (anyHousehold !== null) {
+    const anyPerson = await ctx.db
+      .query("people")
+      .withIndex("by_institution", (q) => q.eq("institutionId", args.institutionId))
+      .first();
+    if (anyHousehold !== null || anyPerson !== null) {
       throw new ConvexError("Sample data can only be loaded into an empty institution.");
     }
 
@@ -109,20 +113,15 @@ export const loadSampleData = mutation({
       });
     }
 
-    await ctx.db.insert("pages", {
-      institutionId: args.institutionId,
-      slug: "welcome",
-      title: "Welcome to Our Community",
-      summary: "A sample published page created by the demo seed.",
-      layout: [
-        {
-          type: "markdown",
-          body: "## Welcome\n\nThis page was created by the ShulStack sample dataset. Edit or archive it from the dashboard.",
-        },
-      ],
-      status: "published",
-      updatedAt: now,
-    });
+    const existingWelcome = await ctx.db
+      .query("pages")
+      .withIndex("by_institution_slug", (q) =>
+        q.eq("institutionId", args.institutionId).eq("slug", "welcome"),
+      )
+      .unique();
+    if (existingWelcome === null) {
+      await insertWelcomePage(ctx, args.institutionId, now);
+    }
 
     await logAudit(ctx, {
       institutionId: args.institutionId,
@@ -134,6 +133,27 @@ export const loadSampleData = mutation({
     });
   },
 });
+
+async function insertWelcomePage(
+  ctx: MutationCtx,
+  institutionId: Id<"institutions">,
+  now: number,
+): Promise<void> {
+  await ctx.db.insert("pages", {
+    institutionId,
+    slug: "welcome",
+    title: "Welcome to Our Community",
+    summary: "A sample published page created by the demo seed.",
+    layout: [
+      {
+        type: "markdown",
+        body: "## Welcome\n\nThis page was created by the ShulStack sample dataset. Edit or archive it from the dashboard.",
+      },
+    ],
+    status: "published",
+    updatedAt: now,
+  });
+}
 
 async function createSampleHousehold(
   ctx: MutationCtx,
@@ -189,7 +209,7 @@ async function createSampleHousehold(
       await recordLedgerEntry(ctx, household, {
         entryType: "opening_balance",
         amountMinor: sample.balanceMinor,
-        occurredAt: "2026-07-01",
+        occurredAt: new Date(now).toISOString().slice(0, 10),
         memo: "Opening balance (sample data)",
         metadata: { sample: true },
       });

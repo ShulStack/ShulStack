@@ -121,6 +121,12 @@ function CreateInstitutionForm() {
           )}
         </Field>
         {error === null ? null : <p className="form-error">{error}</p>}
+        {name.trim() !== "" && !isValidSlug(effectiveSlug) ? (
+          <p className="field-hint">
+            Slugs use lowercase Latin letters, numbers, and hyphens — for names in other alphabets,
+            type a slug by hand (e.g. beth-shalom).
+          </p>
+        ) : null}
         <div>
           <Button disabled={pending || !isValidSlug(effectiveSlug)} type="submit">
             Create institution

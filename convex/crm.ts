@@ -4,7 +4,7 @@ import { ConvexError, v } from "convex/values";
 
 import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
-import { requireStaff } from "./lib/access";
+import { requireStaff, staffOrNull } from "./lib/access";
 import { logAudit } from "./lib/audit";
 import { emitDomainEvent } from "./lib/domainEvents";
 import {
@@ -65,10 +65,9 @@ export const getHousehold = query({
   args: { householdId: v.id("households") },
   handler: async (ctx, args) => {
     const household = await ctx.db.get(args.householdId);
-    if (household === null) {
+    if (household === null || (await staffOrNull(ctx, household.institutionId)) === null) {
       return null;
     }
-    await requireStaff(ctx, household.institutionId);
 
     const memberRows = await ctx.db
       .query("householdMembers")
@@ -281,10 +280,9 @@ export const getPerson = query({
   args: { personId: v.id("people") },
   handler: async (ctx, args) => {
     const person = await ctx.db.get(args.personId);
-    if (person === null) {
+    if (person === null || (await staffOrNull(ctx, person.institutionId)) === null) {
       return null;
     }
-    await requireStaff(ctx, person.institutionId);
 
     const membershipRows = await ctx.db
       .query("householdMembers")
