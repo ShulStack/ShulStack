@@ -5,8 +5,10 @@ import type { Id } from "@shulstack/convex/_generated/dataModel";
 import {
   type ImportedAccount,
   type ImportedPerson,
+  type ImportedTransaction,
   mapAccountsCsv,
   mapPeopleCsv,
+  mapTransactionsCsv,
   type RowIssue,
 } from "@shulstack/platform";
 import { Button, Card, EmptyState, PageHeader } from "@shulstack/ui";
@@ -30,20 +32,26 @@ export default function ImportPage() {
   return (
     <>
       <PageHeader
-        description="Bring your ShulCloud data across: export accounts and people as CSV, then load them here. Re-running an import updates records instead of duplicating them."
+        description="Bring your ShulCloud data across: export accounts, people, and transactions as CSV, then load them here. Re-running an import never duplicates records."
         title="Import from ShulCloud"
       />
       <AccountsImportCard institutionId={workspace.institution._id} />
       <PeopleImportCard institutionId={workspace.institution._id} />
+      <TransactionsImportCard institutionId={workspace.institution._id} />
     </>
   );
 }
 
-type ImportStats = { created: number; updated: number; warnings?: string[] };
+type ImportStats = {
+  created: number;
+  updated: number;
+  skipped: number;
+  unmatched: number;
+  warnings: string[];
+};
+type BatchResult = Partial<Omit<ImportStats, "warnings">> & { warnings?: string[] };
 
-function useBatchImport<Row>(
-  runBatch: (rows: Row[]) => Promise<{ created: number; updated: number; warnings?: string[] }>,
-) {
+function useBatchImport<Row>(runBatch: (rows: Row[]) => Promise<BatchResult>) {
   const [progress, setProgress] = useState<string | null>(null);
   const [result, setResult] = useState<ImportStats | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,14 +59,16 @@ function useBatchImport<Row>(
   async function run(rows: Row[]) {
     setError(null);
     setResult(null);
-    const totals: ImportStats = { created: 0, updated: 0, warnings: [] };
+    const totals: ImportStats = { created: 0, updated: 0, skipped: 0, unmatched: 0, warnings: [] };
     try {
       for (let start = 0; start < rows.length; start += BATCH_SIZE) {
         setProgress(`Importing ${Math.min(start + BATCH_SIZE, rows.length)} of ${rows.length}…`);
         const batch = await runBatch(rows.slice(start, start + BATCH_SIZE));
-        totals.created += batch.created;
-        totals.updated += batch.updated;
-        totals.warnings = [...(totals.warnings ?? []), ...(batch.warnings ?? [])];
+        totals.created += batch.created ?? 0;
+        totals.updated += batch.updated ?? 0;
+        totals.skipped += batch.skipped ?? 0;
+        totals.unmatched += batch.unmatched ?? 0;
+        totals.warnings = [...totals.warnings, ...(batch.warnings ?? [])];
       }
       setResult(totals);
     } catch (caught) {
@@ -102,14 +112,28 @@ function ImportSummary({
       {error === null ? null : <p className="form-error">{error}</p>}
       {result === null ? null : (
         <p className="form-success">
-          Done: {result.created} created, {result.updated} updated.
-          {result.warnings !== undefined && result.warnings.length > 0
+          Done: {describeImportResult(result)}.
+          {result.warnings.length > 0
             ? ` ${result.warnings.length} warning(s): ${result.warnings.slice(0, 3).join("; ")}${result.warnings.length > 3 ? "…" : ""}`
             : ""}
         </p>
       )}
     </>
   );
+}
+
+function describeImportResult(result: ImportStats): string {
+  const parts = [`${result.created} created`];
+  if (result.updated > 0) {
+    parts.push(`${result.updated} updated`);
+  }
+  if (result.skipped > 0) {
+    parts.push(`${result.skipped} already imported`);
+  }
+  if (result.unmatched > 0) {
+    parts.push(`${result.unmatched} without a matching account`);
+  }
+  return parts.join(", ");
 }
 
 function AccountsImportCard({ institutionId }: { institutionId: Id<"institutions"> }) {
@@ -145,6 +169,54 @@ function AccountsImportCard({ institutionId }: { institutionId: Id<"institutions
           <p className="muted">{rows.length} households ready to import.</p>
           <Button disabled={batch.progress !== null} onClick={() => void batch.run(rows)}>
             Import accounts
+          </Button>
+        </div>
+      )}
+      <ImportSummary
+        error={batch.error}
+        issues={issues}
+        progress={batch.progress}
+        result={batch.result}
+      />
+    </Card>
+  );
+}
+
+function TransactionsImportCard({ institutionId }: { institutionId: Id<"institutions"> }) {
+  const importTransactions = useMutation(api.imports.importTransactions);
+  const [rows, setRows] = useState<ImportedTransaction[]>([]);
+  const [issues, setIssues] = useState<RowIssue[]>([]);
+  const batch = useBatchImport<ImportedTransaction>((transactions) =>
+    importTransactions({ institutionId, transactions }),
+  );
+
+  return (
+    <Card title="Step 3: Transactions">
+      <p className="muted">
+        Charges and payments land on each household's ledger, linked through the account id.
+        Households with an imported opening balance keep their total — the detail replaces the
+        summary instead of double-counting it. Already-imported transactions are skipped, so
+        re-running an export is safe.
+      </p>
+      <input
+        accept=".csv,text/csv"
+        aria-label="Transactions CSV file"
+        onChange={async (event) => {
+          const file = event.target.files?.[0];
+          if (file === undefined) {
+            return;
+          }
+          const mapped = mapTransactionsCsv(await file.text());
+          setRows(mapped.transactions);
+          setIssues(mapped.issues);
+        }}
+        type="file"
+      />
+      {rows.length === 0 ? null : (
+        <div className="inline-form">
+          <p className="muted">{rows.length} transactions ready to import.</p>
+          <Button disabled={batch.progress !== null} onClick={() => void batch.run(rows)}>
+            Import transactions
           </Button>
         </div>
       )}

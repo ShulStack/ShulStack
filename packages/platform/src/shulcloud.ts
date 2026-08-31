@@ -408,3 +408,137 @@ export function mapPeopleCsv(text: string): { people: ImportedPerson[]; issues: 
   });
   return { people, issues };
 }
+
+// --- Transactions --------------------------------------------------------------
+
+/**
+ * One row of the ShulCloud transactions export, mapped onto a ledger entry.
+ * The export puts an amount in exactly one of two columns — `Charge` or
+ * `Payment` — and overloads `Type` accordingly: it is the charge category
+ * ("Donation", "Membership", …) on charge rows and the payment method
+ * ("Credit Card", "Check", …) on payment rows. Negative amounts are
+ * adjustments: a negative charge reduces what the household owes (a credit),
+ * a negative payment is a reversed/bounced payment (owed again).
+ */
+export type ImportedTransaction = {
+  externalId: string;
+  accountExternalId: string;
+  entryType: "charge" | "payment" | "credit";
+  /** Always positive; the sign lives in entryType. */
+  amountMinor: number;
+  occurredAt: string;
+  category?: string;
+  method?: string;
+  memo?: string;
+  metadata: Record<string, string>;
+};
+
+const TRANSACTION_ID_ALIASES = ["id", "transaction_id", "txn_id"];
+const TRANSACTION_ACCOUNT_ALIASES = ["account_id", "account_number"];
+
+export function mapTransactionRow(
+  record: Record<string, string>,
+  rowNumber: number,
+): { transaction?: ImportedTransaction; issue?: RowIssue } {
+  const consumed = new Set<string>();
+  const take = consuming(record, consumed);
+
+  const externalId = take(TRANSACTION_ID_ALIASES);
+  if (externalId === undefined) {
+    return { issue: { row: rowNumber, message: "Missing transaction id column (id)" } };
+  }
+  const accountExternalId = take(TRANSACTION_ACCOUNT_ALIASES);
+  if (accountExternalId === undefined) {
+    return { issue: { row: rowNumber, message: `Transaction ${externalId} has no account id` } };
+  }
+  const occurredAt = parseImportDate(take(["date", "transaction_date", "txn_date"]));
+  if (occurredAt === undefined) {
+    return { issue: { row: rowNumber, message: `Transaction ${externalId} has no valid date` } };
+  }
+
+  const chargeRaw = take(["charge", "charge_amount"]);
+  const paymentRaw = take(["payment", "payment_amount", "amount_paid"]);
+  if (chargeRaw !== undefined && paymentRaw !== undefined) {
+    return {
+      issue: {
+        row: rowNumber,
+        message: `Transaction ${externalId} has both a charge and a payment amount`,
+      },
+    };
+  }
+  const rawAmount = chargeRaw ?? paymentRaw;
+  if (rawAmount === undefined) {
+    return {
+      issue: {
+        row: rowNumber,
+        message: `Transaction ${externalId} has neither a charge nor a payment amount`,
+      },
+    };
+  }
+  const signedMinor = parseImportMoney(rawAmount);
+  if (signedMinor === undefined) {
+    return {
+      issue: { row: rowNumber, message: `Transaction ${externalId} has an unparseable amount` },
+    };
+  }
+  if (signedMinor === 0) {
+    return { issue: { row: rowNumber, message: `Transaction ${externalId} has a zero amount` } };
+  }
+
+  const typeLabel = take(["type", "transaction_type", "charge_type"]);
+  const reversalType = take(["reversal_type"]);
+  const notes = take(["notes", "note", "memo"]);
+  const memo = [reversalType, notes].filter((part) => part !== undefined).join(": ");
+
+  // Redundant projections of the account row; the household already has them.
+  take(["account", "account_name", "email", "member_since", "payer"]);
+
+  const amountMinor = Math.abs(signedMinor);
+  const shape =
+    chargeRaw !== undefined
+      ? signedMinor > 0
+        ? { entryType: "charge" as const, category: typeLabel }
+        : { entryType: "credit" as const, category: typeLabel }
+      : signedMinor > 0
+        ? { entryType: "payment" as const, method: typeLabel }
+        : { entryType: "charge" as const, category: "Payment reversal", method: typeLabel };
+
+  return {
+    transaction: {
+      externalId,
+      accountExternalId,
+      occurredAt,
+      amountMinor,
+      ...shape,
+      memo: memo === "" ? undefined : memo,
+      metadata: collectUnmapped(record, consumed),
+    },
+  };
+}
+
+export function mapTransactionsCsv(text: string): {
+  transactions: ImportedTransaction[];
+  issues: RowIssue[];
+} {
+  const transactions: ImportedTransaction[] = [];
+  const issues: RowIssue[] = [];
+  let records: Record<string, string>[];
+  try {
+    records = csvToRecords(text);
+  } catch (error) {
+    return { transactions, issues: [fileIssue(error)] };
+  }
+  records.forEach((record, index) => {
+    if (Object.keys(record).length === 0) {
+      return;
+    }
+    const { transaction, issue } = mapTransactionRow(record, index + 2);
+    if (transaction !== undefined) {
+      transactions.push(transaction);
+    }
+    if (issue !== undefined) {
+      issues.push(issue);
+    }
+  });
+  return { transactions, issues };
+}

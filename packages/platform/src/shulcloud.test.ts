@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import {
   mapAccountsCsv,
   mapPeopleCsv,
+  mapTransactionsCsv,
   parseImportDate,
   parseImportGender,
   parseImportMoney,
@@ -107,6 +108,89 @@ describe("mapPeopleCsv", () => {
     expect(people[1]?.dateOfBirth).toBe("1981-07-04");
     // Row with an unknown account still maps; linking is the backend's concern.
     expect(people[2]?.accountExternalId).toBe("999");
+  });
+});
+
+// Mirrors the real export's header set (BOM included); values are synthetic.
+const TRANSACTIONS_CSV = `﻿Date,ID,Account,Email,"Member Since",Type,"Txn Ref",Notes,Charge,Payment,Status,"Is Closed?","Amount Open","Account ID","Payer ID",Payer,"Reversal Type","Internal ID"
+2026-01-15,C101,"Cohen, David & Rachel",cohens@example.com,2019-09-15,Membership,,Annual dues,1800.00,,Closed,Y,0.00,101,,,,900000001
+2026-02-01,P201,"Cohen, David & Rachel",cohens@example.com,2019-09-15,Credit Card,ch_testref123,,,1000.00,Closed,Y,0.00,101,,,,900000002
+2026-03-01,C102,"Cohen, David & Rachel",cohens@example.com,2019-09-15,Membership,,Board discount,-300.00,,Closed,Y,0.00,101,,,Adjustment,900000003
+2026-03-15,P202,"Cohen, David & Rachel",cohens@example.com,2019-09-15,Check,,,,-250.00,Closed,Y,250.00,101,,,Bounce,900000004
+2026-04-01,C103,Goldberg Miriam,,2015-06-22,Donation,,,0.00,,Closed,Y,0.00,102,,,,900000005
+2026-05-01,C104,Goldberg Miriam,,2015-06-22,Donation,,,18.00,,Closed,Y,0.00,,,,,900000006`;
+
+describe("mapTransactionsCsv", () => {
+  test("maps charges and payments, with Type as category or method", () => {
+    const { transactions, issues } = mapTransactionsCsv(TRANSACTIONS_CSV);
+    expect(transactions).toHaveLength(4);
+    expect(issues).toHaveLength(2);
+
+    expect(transactions[0]).toMatchObject({
+      externalId: "C101",
+      accountExternalId: "101",
+      entryType: "charge",
+      amountMinor: 180_000,
+      occurredAt: "2026-01-15",
+      category: "Membership",
+      memo: "Annual dues",
+    });
+    expect(transactions[0]?.method).toBeUndefined();
+
+    expect(transactions[1]).toMatchObject({
+      externalId: "P201",
+      entryType: "payment",
+      amountMinor: 100_000,
+      method: "Credit Card",
+    });
+    expect(transactions[1]?.category).toBeUndefined();
+  });
+
+  test("negative charges become credits; negative payments become reversal charges", () => {
+    const { transactions } = mapTransactionsCsv(TRANSACTIONS_CSV);
+    expect(transactions[2]).toMatchObject({
+      externalId: "C102",
+      entryType: "credit",
+      amountMinor: 30_000,
+      category: "Membership",
+      memo: "Adjustment: Board discount",
+    });
+    expect(transactions[3]).toMatchObject({
+      externalId: "P202",
+      entryType: "charge",
+      amountMinor: 25_000,
+      category: "Payment reversal",
+      method: "Check",
+      memo: "Bounce",
+    });
+  });
+
+  test("zero amounts and missing account ids come back as issues", () => {
+    const { issues } = mapTransactionsCsv(TRANSACTIONS_CSV);
+    expect(issues.map((issue) => issue.message)).toEqual([
+      expect.stringMatching(/C103.*zero amount/),
+      expect.stringMatching(/C104.*no account id/),
+    ]);
+  });
+
+  test("keeps bookkeeping columns in metadata but drops account-level personal fields", () => {
+    const { transactions } = mapTransactionsCsv(TRANSACTIONS_CSV);
+    const payment = transactions[1];
+    expect(payment?.metadata).toMatchObject({
+      txn_ref: "ch_testref123",
+      status: "Closed",
+      is_closed: "Y",
+      internal_id: "900000002",
+    });
+    for (const dropped of ["account", "email", "member_since", "payer"]) {
+      expect(payment?.metadata[dropped]).toBeUndefined();
+    }
+  });
+
+  test("a malformed file becomes a file-level issue", () => {
+    const { transactions, issues } = mapTransactionsCsv('ID,Notes\nC1,"unclosed');
+    expect(transactions).toHaveLength(0);
+    expect(issues).toEqual([{ row: 1, message: expect.stringMatching(/[Uu]nterminated/) }]);
   });
 });
 

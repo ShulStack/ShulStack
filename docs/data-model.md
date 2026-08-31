@@ -64,6 +64,7 @@ Plus the Convex Auth tables (`users`, `authSessions`, …) via `authTables`.
 | Business/school fields | `personAffiliations` |
 | Lifecycle dates and locations | `personLifecycleEvents` |
 | Billing method, discounts, balances | `householdBillingProfiles`, `householdBalanceSnapshots` |
+| Transactions export (charges & payments, with `Type` as category or method) | `ledgerEntries` via `recordLedgerEntry`; negative charges become credits, negative payments become reversal charges, and imported deltas are absorbed into the importer's opening-balance entry |
 | `tags` | `tags` + `tagAssignments` |
 | Family-card/print-workflow columns | `households.metadata` |
 

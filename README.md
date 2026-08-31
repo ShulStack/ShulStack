@@ -31,9 +31,11 @@ The platform core works today and is covered by an automated test suite
   household balances. The ledger is the *only* writer of balances; snapshots
   are derived, and an admin reconciliation check proves the books tie out.
   Money is integer minor units end to end.
-- **ShulCloud import** — upload the accounts and people CSV exports and get
-  households, people, memberships, contact info, and opening balances.
-  Re-running an import updates records instead of duplicating them.
+- **ShulCloud import** — upload the accounts, people, and transactions CSV
+  exports and get households, people, memberships, contact info, and the full
+  charge/payment history on each household's ledger. Re-running an import
+  never duplicates records, and imported transaction detail replaces the
+  summary opening balance instead of double-counting it.
 - **Website** — per-institution pages with a block editor and
   draft/publish/archive flow, served on a cached public site route.
 - **Domain events** — mutations emit events (`household.created`, …)

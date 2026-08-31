@@ -4,7 +4,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { mutation } from "./_generated/server";
-import { recordLedgerEntry } from "./ledger";
+import { ledgerDelta, recordLedgerEntry } from "./ledger";
 import { requireStaff } from "./lib/access";
 import { logAudit } from "./lib/audit";
 import { emitDomainEvent } from "./lib/domainEvents";
@@ -343,6 +343,166 @@ export const importPeople = mutation({
     return { created, updated, warnings };
   },
 });
+
+const importedTransactionValidator = v.object({
+  externalId: v.string(),
+  accountExternalId: v.string(),
+  entryType: v.union(v.literal("charge"), v.literal("payment"), v.literal("credit")),
+  amountMinor: v.number(),
+  occurredAt: v.string(),
+  category: v.optional(v.string()),
+  method: v.optional(v.string()),
+  memo: v.optional(v.string()),
+  metadata: v.record(v.string(), v.string()),
+});
+
+/**
+ * Import ShulCloud transactions as ledger entries, linked to households via
+ * the account external reference (so accounts must be imported first).
+ *
+ * Ledger entries are immutable, so idempotency here means skip, not update:
+ * a transaction whose external id was already imported is never re-applied.
+ *
+ * Balances stay honest across the accounts-then-transactions sequence: the
+ * accounts import seeds each household's whole ShulCloud balance as one
+ * opening_balance entry, so every imported transaction's delta is absorbed
+ * back into that entry. The household balance ends where ShulCloud says it
+ * is, and the opening entry shrinks to whatever history predates the export.
+ */
+export const importTransactions = mutation({
+  args: {
+    institutionId: v.id("institutions"),
+    transactions: v.array(importedTransactionValidator),
+  },
+  handler: async (ctx, args) => {
+    const { userId } = await requireStaff(ctx, args.institutionId, "admin");
+    assertBatchSize(args.transactions.length);
+    let created = 0;
+    let skipped = 0;
+    let unmatched = 0;
+    const warnings: string[] = [];
+    const householdsByAccount = new Map<string, Doc<"households"> | null>();
+    const absorbedDeltas = new Map<Id<"households">, number>();
+
+    for (const transaction of args.transactions) {
+      const existing = await findExternalRef(
+        ctx,
+        args.institutionId,
+        "transaction",
+        transaction.externalId,
+      );
+      if (existing !== null) {
+        skipped += 1;
+        continue;
+      }
+
+      let household = householdsByAccount.get(transaction.accountExternalId);
+      if (household === undefined) {
+        const accountRef = await findExternalRef(
+          ctx,
+          args.institutionId,
+          "account",
+          transaction.accountExternalId,
+        );
+        const householdId =
+          accountRef === null ? null : ctx.db.normalizeId("households", accountRef.entityId);
+        household = householdId === null ? null : await ctx.db.get(householdId);
+        if (household !== null && household.institutionId !== args.institutionId) {
+          household = null;
+        }
+        householdsByAccount.set(transaction.accountExternalId, household);
+      }
+      if (household === null) {
+        unmatched += 1;
+        if (warnings.length < 50) {
+          warnings.push(
+            `Transaction ${transaction.externalId}: account ${transaction.accountExternalId} not imported yet`,
+          );
+        }
+        continue;
+      }
+
+      const entryId = await recordLedgerEntry(ctx, household, {
+        entryType: transaction.entryType,
+        amountMinor: transaction.amountMinor,
+        occurredAt: transaction.occurredAt,
+        category: transaction.category,
+        method: transaction.method,
+        memo: transaction.memo,
+        createdBy: userId,
+        metadata: { ...transaction.metadata, ...IMPORT_SOURCE },
+      });
+      await ctx.db.insert("externalReferences", {
+        institutionId: args.institutionId,
+        system: SYSTEM,
+        referenceType: "transaction",
+        entityType: "ledgerEntry",
+        entityId: entryId,
+        value: transaction.externalId,
+        metadata: {},
+        updatedAt: Date.now(),
+      });
+      const delta = ledgerDelta(transaction.entryType, transaction.amountMinor);
+      absorbedDeltas.set(household._id, (absorbedDeltas.get(household._id) ?? 0) + delta);
+      created += 1;
+    }
+
+    for (const [householdId, delta] of absorbedDeltas) {
+      await absorbIntoImportedOpeningBalance(ctx, householdId, delta);
+    }
+
+    await logAudit(ctx, {
+      institutionId: args.institutionId,
+      actorUserId: userId,
+      entityType: "import",
+      entityId: `${SYSTEM}:transactions`,
+      action: "create",
+      after: { created, skipped, unmatched, total: args.transactions.length },
+    });
+    return { created, skipped, unmatched, warnings };
+  },
+});
+
+/**
+ * Fold freshly imported transaction deltas back into the household's
+ * importer-created opening_balance entry (if it has one), keeping the live
+ * balance equal to the ShulCloud total instead of double-counting. No-op for
+ * households without an imported opening balance — there the transaction
+ * history itself is the balance.
+ */
+async function absorbIntoImportedOpeningBalance(
+  ctx: MutationCtx,
+  householdId: Id<"households">,
+  delta: number,
+): Promise<void> {
+  if (delta === 0) {
+    return;
+  }
+  const entries = await ctx.db
+    .query("ledgerEntries")
+    .withIndex("by_household_date", (q) => q.eq("householdId", householdId))
+    .collect();
+  const opening = entries.find(
+    (entry) => entry.entryType === "opening_balance" && entry.metadata.source === SYSTEM,
+  );
+  if (opening === undefined) {
+    return;
+  }
+  await ctx.db.patch(opening._id, {
+    amountMinor: opening.amountMinor - delta,
+    memo: "Balance before imported transaction history",
+  });
+  const profile = await ctx.db
+    .query("householdBillingProfiles")
+    .withIndex("by_household", (q) => q.eq("householdId", householdId))
+    .unique();
+  if (profile !== null) {
+    await ctx.db.patch(profile._id, {
+      balanceMinor: profile.balanceMinor - delta,
+      updatedAt: Date.now(),
+    });
+  }
+}
 
 type ImportedAccountShape = {
   address?: {

@@ -1,4 +1,4 @@
-import { mapAccountsCsv, mapPeopleCsv } from "@shulstack/platform";
+import { mapAccountsCsv, mapPeopleCsv, mapTransactionsCsv } from "@shulstack/platform";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { api } from "../../convex/_generated/api";
@@ -13,6 +13,12 @@ const PEOPLE_CSV = `ID,Account ID,First Name,Last Name,Gender,Relationship,Is Pr
 201,101,David,Cohen,M,Head,Yes,david@example.com,555-1234
 202,101,Rachel,Cohen,F,Spouse,No,,
 203,999,Orphan,Person,,Child,No,,`;
+
+const TRANSACTIONS_CSV = `Date,ID,Type,Notes,Charge,Payment,"Account ID","Reversal Type"
+2026-01-15,C101,Membership,Annual dues,1800.00,,101,
+2026-02-01,P201,Credit Card,,,1000.00,101,
+2026-03-01,C102,Donation,,-300.00,,102,Adjustment
+2026-06-01,C999,Donation,,50.00,,999,`;
 
 describe("ShulCloud import", () => {
   let t: Backend;
@@ -171,6 +177,122 @@ describe("ShulCloud import", () => {
       ),
     );
     expect(membershipRows).toHaveLength(2);
+  });
+
+  test("imports transactions onto ledgers and absorbs imported opening balances", async () => {
+    await admin.as.mutation(api.imports.importAccounts, {
+      institutionId,
+      accounts: mappedAccounts(),
+    });
+    const { transactions, issues } = mapTransactionsCsv(TRANSACTIONS_CSV);
+    expect(issues).toHaveLength(0);
+
+    const result = await admin.as.mutation(api.imports.importTransactions, {
+      institutionId,
+      transactions,
+    });
+    expect(result).toMatchObject({ created: 3, skipped: 0, unmatched: 1 });
+    expect(result.warnings[0]).toMatch(/account 999/);
+
+    const page = await admin.as.query(api.crm.listHouseholds, {
+      institutionId,
+      paginationOpts: firstPage,
+    });
+    const cohen = page.page.find((h) => h.displayName === "Cohen, David & Rachel");
+    const goldberg = page.page.find((h) => h.displayName === "Goldberg Miriam");
+    if (cohen === undefined || goldberg === undefined) throw new Error("unreachable");
+
+    // The ShulCloud totals are preserved: detail replaced the summary.
+    const cohenFinance = await admin.as.query(api.finance.getHouseholdFinance, {
+      householdId: cohen._id,
+    });
+    expect(cohenFinance?.profile?.balanceMinor).toBe(42_500);
+    const goldbergFinance = await admin.as.query(api.finance.getHouseholdFinance, {
+      householdId: goldberg._id,
+    });
+    expect(goldbergFinance?.profile?.balanceMinor).toBe(-1_800);
+
+    // Cohen: opening + charge + payment; opening shrank by the imported deltas.
+    const cohenEntries = await admin.as.query(api.ledger.listLedgerEntries, {
+      householdId: cohen._id,
+      paginationOpts: firstPage,
+    });
+    expect(cohenEntries.page).toHaveLength(3);
+    const opening = cohenEntries.page.find((entry) => entry.entryType === "opening_balance");
+    expect(opening).toMatchObject({
+      amountMinor: 42_500 - (180_000 - 100_000),
+      memo: "Balance before imported transaction history",
+    });
+    expect(cohenEntries.page.find((entry) => entry.entryType === "payment")).toMatchObject({
+      method: "Credit Card",
+      amountMinor: 100_000,
+    });
+    expect(cohenEntries.page.find((entry) => entry.entryType === "charge")).toMatchObject({
+      category: "Membership",
+      memo: "Annual dues",
+    });
+
+    // Goldberg's negative charge landed as a credit.
+    const goldbergEntries = await admin.as.query(api.ledger.listLedgerEntries, {
+      householdId: goldberg._id,
+      paginationOpts: firstPage,
+    });
+    expect(goldbergEntries.page.find((entry) => entry.entryType === "credit")).toMatchObject({
+      amountMinor: 30_000,
+      memo: "Adjustment",
+    });
+
+    // The books tie out.
+    const report = await admin.as.query(api.finance.reconcileBalances, { institutionId });
+    expect(report.mismatches).toEqual([]);
+
+    // Re-running skips everything already imported and changes nothing.
+    const second = await admin.as.mutation(api.imports.importTransactions, {
+      institutionId,
+      transactions,
+    });
+    expect(second).toMatchObject({ created: 0, skipped: 3, unmatched: 1 });
+    const cohenAfter = await admin.as.query(api.finance.getHouseholdFinance, {
+      householdId: cohen._id,
+    });
+    expect(cohenAfter?.profile?.balanceMinor).toBe(42_500);
+    const cohenEntriesAfter = await admin.as.query(api.ledger.listLedgerEntries, {
+      householdId: cohen._id,
+      paginationOpts: firstPage,
+    });
+    expect(cohenEntriesAfter.page).toHaveLength(3);
+  });
+
+  test("households without an imported opening balance accumulate transaction history", async () => {
+    await admin.as.mutation(api.imports.importAccounts, {
+      institutionId,
+      accounts: mapAccountsCsv("ID,Name\n201,No Balance Family").accounts,
+    });
+    const { transactions } = mapTransactionsCsv(
+      `Date,ID,Type,Charge,Payment,"Account ID"\n2026-05-01,C301,Membership,50.00,,201`,
+    );
+    const result = await admin.as.mutation(api.imports.importTransactions, {
+      institutionId,
+      transactions,
+    });
+    expect(result).toMatchObject({ created: 1, skipped: 0, unmatched: 0 });
+
+    const page = await admin.as.query(api.crm.listHouseholds, {
+      institutionId,
+      paginationOpts: firstPage,
+    });
+    const household = page.page.find((h) => h.displayName === "No Balance Family");
+    if (household === undefined) throw new Error("unreachable");
+    const finance = await admin.as.query(api.finance.getHouseholdFinance, {
+      householdId: household._id,
+    });
+    expect(finance?.profile?.balanceMinor).toBe(5_000);
+    const entries = await admin.as.query(api.ledger.listLedgerEntries, {
+      householdId: household._id,
+      paginationOpts: firstPage,
+    });
+    expect(entries.page).toHaveLength(1);
+    expect(entries.page[0]?.entryType).toBe("charge");
   });
 
   test("import requires the admin role and the right institution", async () => {
