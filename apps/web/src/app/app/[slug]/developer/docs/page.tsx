@@ -88,6 +88,30 @@ const ENDPOINTS: Endpoint[] = [
     summary: "Every ledger entry in the institution, newest date first.",
     params: "limit, cursor, from, to",
   },
+  {
+    method: "GET",
+    path: "/analytics/households",
+    summary:
+      "Per-household giving rollups: rank and filter by payments, charges, credits, or net over a date range or category, with thresholds and a matched-total summary.",
+    params: "metric, from, to, category, min, max, order, active=true, limit",
+  },
+  {
+    method: "GET",
+    path: "/analytics/categories",
+    summary: "Charged/paid/credited totals per ledger category over an optional date range.",
+    params: "from, to",
+  },
+  {
+    method: "GET",
+    path: "/campaigns",
+    summary: "Fundraising campaigns with pledge rollups (committed, raised, open pipeline).",
+  },
+  {
+    method: "GET",
+    path: "/pledges",
+    summary: "Pledges joined to household/person/campaign names, with stage and amounts.",
+    params: "campaignId, stage, open=true",
+  },
 ];
 
 export default function ApiDocsPage() {

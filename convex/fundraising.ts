@@ -136,7 +136,7 @@ type PledgeRollup = {
   raisedMinor: number;
 };
 
-function rollupPledges(pledges: Doc<"pledges">[]): PledgeRollup {
+export function rollupPledges(pledges: Doc<"pledges">[]): PledgeRollup {
   const openStages = new Set<string>(OPEN_PLEDGE_STAGES);
   let openCount = 0;
   let committedMinor = 0;
@@ -153,7 +153,7 @@ function rollupPledges(pledges: Doc<"pledges">[]): PledgeRollup {
   return { pledgeCount: pledges.length, openCount, committedMinor, raisedMinor };
 }
 
-async function campaignPledges(
+export async function campaignPledges(
   ctx: QueryCtx,
   campaignId: Id<"campaigns">,
 ): Promise<Doc<"pledges">[]> {
@@ -203,7 +203,7 @@ export const getCampaign = query({
 
 // --- Pledges -------------------------------------------------------------------
 
-async function joinPledge(
+export async function joinPledge(
   ctx: QueryCtx,
   pledge: Doc<"pledges">,
   preloaded: { campaign?: Doc<"campaigns"> } = {},

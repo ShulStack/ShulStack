@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { SignInForm } from "../../../components/sign-in-form";
+import { SrulyPanel } from "../../../components/sruly-panel";
 import { useWorkspace } from "../../../components/use-workspace";
 
 export default function WorkspaceLayout({ children }: { children: ReactNode }) {
@@ -89,6 +90,7 @@ function WorkspaceShell({ children }: { children: ReactNode }) {
     <div className="app-shell">
       <WorkspaceNav institutionName={workspace.institution.name} navItems={navItems} />
       <main className="app-main">{children}</main>
+      <SrulyPanel />
     </div>
   );
 }

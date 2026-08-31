@@ -83,7 +83,7 @@ function paginationFromRequest(url: URL): { numItems: number; cursor: string | n
 }
 
 /** Validate an optional ?from/?to date param, or a 400. */
-function dateParam(url: URL, name: string): string | undefined | Response {
+export function dateParam(url: URL, name: string): string | undefined | Response {
   const value = url.searchParams.get(name);
   if (value === null) {
     return undefined;

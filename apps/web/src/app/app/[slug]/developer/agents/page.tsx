@@ -3,33 +3,8 @@
 import { Badge, EmptyState, PageHeader } from "@shulstack/ui";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
-
+import { useAgentStatus } from "../../../../../components/use-agent-status";
 import { useCanAdminister, useWorkspace } from "../../../../../components/use-workspace";
-
-type AgentStatus = "checking" | "running" | "disabled";
-
-function useAgentStatus(agentName: string): AgentStatus {
-  const [status, setStatus] = useState<AgentStatus>("checking");
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/eve/agents/${agentName}/eve/v1/health`)
-      .then((response) => {
-        if (!cancelled) {
-          setStatus(response.ok ? "running" : "disabled");
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setStatus("disabled");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [agentName]);
-  return status;
-}
 
 export default function AgentsPage() {
   const workspace = useWorkspace();

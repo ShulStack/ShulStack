@@ -11,6 +11,12 @@ import {
   transactionsHandler,
 } from "./httpApi";
 import {
+  analyticsCategoriesHandler,
+  analyticsHouseholdsHandler,
+  campaignsHandler,
+  pledgesHandler,
+} from "./httpApiAnalytics";
+import {
   createHouseholdHandler,
   createPersonHandler,
   householdSubresourceHandler,
@@ -32,6 +38,18 @@ http.route({ pathPrefix: "/api/v1/households/", method: "GET", handler: househol
 http.route({ path: "/api/v1/people", method: "GET", handler: peopleHandler });
 http.route({ pathPrefix: "/api/v1/people/", method: "GET", handler: personByIdHandler });
 http.route({ path: "/api/v1/transactions", method: "GET", handler: transactionsHandler });
+http.route({
+  path: "/api/v1/analytics/households",
+  method: "GET",
+  handler: analyticsHouseholdsHandler,
+});
+http.route({
+  path: "/api/v1/analytics/categories",
+  method: "GET",
+  handler: analyticsCategoriesHandler,
+});
+http.route({ path: "/api/v1/campaigns", method: "GET", handler: campaignsHandler });
+http.route({ path: "/api/v1/pledges", method: "GET", handler: pledgesHandler });
 
 // Write endpoints (403 insufficient_scope for read-only keys).
 http.route({ path: "/api/v1/households", method: "POST", handler: createHouseholdHandler });

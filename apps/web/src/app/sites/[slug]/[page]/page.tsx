@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { renderMarkdownLite } from "../../../../lib/markdown";
+import { MarkdownLite } from "../../../../components/markdown-lite";
 
 // Public pages are cached and revalidated instead of rendered per request;
 // edits to a published page show up within five minutes.
@@ -55,25 +55,7 @@ export default async function PublicSitePage({ params }: PublicPageProps) {
           typeof block.body === "string" ? (
             // biome-ignore lint/suspicious/noArrayIndexKey: layout blocks have no ids
             <section className="public-block" key={index}>
-              {renderMarkdownLite(block.body).map((rendered, blockIndex) => {
-                const key = blockIndex;
-                switch (rendered.kind) {
-                  case "h2":
-                    return <h2 key={key}>{rendered.text}</h2>;
-                  case "h3":
-                    return <h3 key={key}>{rendered.text}</h3>;
-                  case "ul":
-                    return (
-                      <ul key={key}>
-                        {rendered.items.map((item) => (
-                          <li key={item}>{item}</li>
-                        ))}
-                      </ul>
-                    );
-                  default:
-                    return <p key={key}>{rendered.text}</p>;
-                }
-              })}
+              <MarkdownLite text={block.body} />
             </section>
           ) : null,
         )}

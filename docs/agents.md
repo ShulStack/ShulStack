@@ -8,10 +8,24 @@ each community's agents are automatically isolated: their own API key, their
 own model billing (via Vercel's AI Gateway, on your account), their own
 session history — and agent fixes arrive with normal ShulStack updates.
 
-The first agent is **Sruly** (`agents/sruly`), a read-only membership Q&A
-assistant: who's in a household, birth dates, Hebrew names, balances, giving
-history. His entire capability is six read-only tools over the ShulStack
-HTTP API; eve's default shell/file/web tools are explicitly disabled.
+The first agent is **Sruly** (`agents/sruly`), a read-only membership and
+analytics assistant: who's in a household, birth dates, Hebrew names,
+balances, giving history — plus community-wide analytics ("who gave over
+$10,000", "top donors this year", "how much in dues") through the API's
+aggregation endpoints, and campaign/pledge questions. His entire capability
+is read-only tools over the ShulStack HTTP API; eve's default
+shell/file/web tools are explicitly disabled.
+
+Beyond the full chat page, Sruly is available as a **collapsible panel on
+every dashboard page** (the "Ask Sruly" button, shown whenever the agent is
+running). Each message carries the current page path as ephemeral context —
+never stored in session history — and a `get_page_data` tool lets him read
+the data behind the page you're on, so "who's in this household?" just
+works. Recognized tool results render as cards with money bars; anything
+else falls back to collapsible JSON. (We evaluated tool-ui.com for richer
+cards: nice work, but it's built on Tailwind/Radix/shadcn, which this
+codebase deliberately avoids — the pattern is reimplemented in the app's
+own CSS instead.)
 
 ## Enable on Vercel
 
