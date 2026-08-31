@@ -17,6 +17,7 @@ import type * as events from "../events.js";
 import type * as finance from "../finance.js";
 import type * as http from "../http.js";
 import type * as httpApi from "../httpApi.js";
+import type * as httpApiWrites from "../httpApiWrites.js";
 import type * as imports from "../imports.js";
 import type * as ledger from "../ledger.js";
 import type * as lib_access from "../lib/access.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   finance: typeof finance;
   http: typeof http;
   httpApi: typeof httpApi;
+  httpApiWrites: typeof httpApiWrites;
   imports: typeof imports;
   ledger: typeof ledger;
   "lib/access": typeof lib_access;

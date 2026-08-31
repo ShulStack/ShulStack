@@ -24,7 +24,7 @@ export default function ApiKeysPage() {
   return (
     <>
       <PageHeader
-        description="Institution-scoped keys for the read-only HTTP API (and the MCP server to come). Secrets are shown once and stored hashed."
+        description="Institution-scoped keys for the HTTP API (and the MCP server to come). Keys are read-only unless granted the write scope. Secrets are shown once and stored hashed."
         title="API keys"
         actions={
           <Link className="button secondary" href={`/app/${params.slug}/developer/docs`}>
@@ -41,6 +41,7 @@ export default function ApiKeysPage() {
 function CreateKeyCard({ institutionId }: { institutionId: Id<"institutions"> }) {
   const createApiKey = useMutation(api.developer.createApiKey);
   const [name, setName] = useState("");
+  const [scope, setScope] = useState<"read" | "read_write">("read");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
@@ -54,10 +55,15 @@ function CreateKeyCard({ institutionId }: { institutionId: Id<"institutions"> })
           setError(null);
           setSecret(null);
           setPending(true);
-          createApiKey({ institutionId, name })
+          createApiKey({
+            institutionId,
+            name,
+            scopes: scope === "read_write" ? ["read", "write"] : ["read"],
+          })
             .then((created) => {
               setSecret(created.secret);
               setName("");
+              setScope("read");
             })
             .catch((caught) => setError(errorMessage(caught)))
             .finally(() => setPending(false));
@@ -72,6 +78,18 @@ function CreateKeyCard({ institutionId }: { institutionId: Id<"institutions"> })
               required
               value={name}
             />
+          )}
+        </Field>
+        <Field hint="Write keys can create and update records." label="Access">
+          {(id) => (
+            <select
+              id={id}
+              onChange={(event) => setScope(event.target.value as typeof scope)}
+              value={scope}
+            >
+              <option value="read">Read-only</option>
+              <option value="read_write">Read &amp; write</option>
+            </select>
           )}
         </Field>
         <Button disabled={pending} type="submit">
@@ -127,6 +145,7 @@ function KeyListCard({ institutionId }: { institutionId: Id<"institutions"> }) {
             <tr>
               <th>Name</th>
               <th>Key</th>
+              <th>Scope</th>
               <th>Created</th>
               <th>Last used</th>
               <th>Status</th>
@@ -144,6 +163,11 @@ function KeyListCard({ institutionId }: { institutionId: Id<"institutions"> }) {
                 </td>
                 <td>
                   <code className="code-inline">{key.keyPrefix}…</code>
+                </td>
+                <td>
+                  <Badge tone={key.scopes.includes("write") ? "warning" : "neutral"}>
+                    {key.scopes.includes("write") ? "read + write" : "read"}
+                  </Badge>
                 </td>
                 <td>{formatTimestamp(key.createdAt)}</td>
                 <td>{key.lastUsedAt === undefined ? "never" : formatTimestamp(key.lastUsedAt)}</td>

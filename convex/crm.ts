@@ -212,7 +212,9 @@ export const setHouseholdActive = mutation({
 
 // --- People --------------------------------------------------------------------
 
-const personFields = {
+/** The user-editable name/detail fields shared by person create and update
+ * (and reused by the HTTP API's write endpoints). */
+export const personFields = {
   title: v.optional(v.string()),
   firstName: v.optional(v.string()),
   middleName: v.optional(v.string()),
@@ -526,7 +528,7 @@ export const dashboardStats = query({
   },
 });
 
-function pruneUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {
+export function pruneUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(value).filter(([, entry]) => entry !== undefined),
   ) as Partial<T>;

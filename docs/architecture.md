@@ -82,15 +82,21 @@ so finance flows never see a missing profile.
 
 ## The HTTP API and API keys
 
-`convex/httpApi.ts` serves a versioned, read-only REST API (`/api/v1/…`) on
-the deployment's site URL, and the planned MCP server will ride on it. Its
-principals are **API keys** (`developer.ts`), not users: institution-scoped,
-admin-managed, `ssk_…` secrets shown once and stored only as SHA-256 hashes.
-Every handler resolves the key first and scopes all reads to its
-institution; IDs from other institutions 404 exactly like missing IDs. The
-data queries behind the handlers are `internalQuery`s — the only public
-surface is the router itself. Keys are read-only today (`scopes: ["read"]`);
-write scopes are a deliberate future decision, not an omission.
+`convex/httpApi.ts` (reads) and `convex/httpApiWrites.ts` (writes) serve a
+versioned REST API (`/api/v1/…`) on the deployment's site URL, and the
+planned MCP server will ride on it. Its principals are **API keys**
+(`developer.ts`), not users: institution-scoped, admin-managed, `ssk_…`
+secrets shown once and stored only as SHA-256 hashes. Every handler resolves
+the key first and scopes every read and write to its institution; IDs from
+other institutions 404 exactly like missing IDs. The data queries and
+mutations behind the handlers are internal functions — the only public
+surface is the router itself. Keys carry scopes: every key has `read`, and
+keys created with `write` (which always implies `read`) may also POST/PATCH
+households, people, memberships, and ledger entries. Write handlers return
+403 `insufficient_scope` for read-only keys; every write goes through the
+same audit-log, domain-event, and `recordLedgerEntry` paths as the staff
+mutations, with the acting key recorded in the audit entry. There are no
+DELETE endpoints because the backend has no delete mutations by design.
 
 ## Conventions
 

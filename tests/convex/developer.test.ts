@@ -58,6 +58,37 @@ describe("API keys and the HTTP API", () => {
     expect(stored[0]?.keyHash).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  test("scopes default to read, write implies read, and both are audit-logged", async () => {
+    await owner.as.mutation(api.developer.createApiKey, { institutionId, name: "Default" });
+    await owner.as.mutation(api.developer.createApiKey, {
+      institutionId,
+      name: "Explicit reader",
+      scopes: ["read"],
+    });
+    const writer = await owner.as.mutation(api.developer.createApiKey, {
+      institutionId,
+      name: "Writer",
+      scopes: ["write"],
+    });
+
+    const listed = await owner.as.query(api.developer.listApiKeys, { institutionId });
+    const scopesByName = new Map(listed.map((key) => [key.name, key.scopes]));
+    expect(scopesByName.get("Default")).toEqual(["read"]);
+    expect(scopesByName.get("Explicit reader")).toEqual(["read"]);
+    expect(scopesByName.get("Writer")).toEqual(["read", "write"]);
+
+    const audits = await t.run(async (ctx) => await ctx.db.query("auditLogs").collect());
+    const keyAudits = audits.filter((entry) => entry.entityType === "apiKey");
+    expect(keyAudits).toHaveLength(3);
+    const writerAudit = keyAudits.find((entry) => entry.after?.name === "Writer");
+    expect(writerAudit?.after).toMatchObject({
+      keyPrefix: writer.keyPrefix,
+      scopes: ["read", "write"],
+    });
+    const defaultAudit = keyAudits.find((entry) => entry.after?.name === "Default");
+    expect(defaultAudit?.after).toMatchObject({ scopes: ["read"] });
+  });
+
   test("key management requires the admin role", async () => {
     const staffer = await signUp(t, "staff@example.com");
     await owner.as.mutation(api.platform.addStaffByEmail, {

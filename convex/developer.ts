@@ -4,17 +4,20 @@ import { internalMutation, internalQuery, mutation, query } from "./_generated/s
 import { requireStaff } from "./lib/access";
 import { apiKeyDisplayPrefix, generateApiKeySecret, hashApiKeySecret } from "./lib/apiKeys";
 import { logAudit } from "./lib/audit";
+import { type ApiKeyScope, apiKeyScopeValidator } from "./lib/validators";
 
 const MAX_ACTIVE_KEYS = 20;
 
 /**
  * Create an institution-scoped API key. The full secret is returned exactly
- * once, from this mutation; only its hash is stored.
+ * once, from this mutation; only its hash is stored. Scopes default to
+ * read-only; a key granted "write" always carries "read" as well.
  */
 export const createApiKey = mutation({
   args: {
     institutionId: v.id("institutions"),
     name: v.string(),
+    scopes: v.optional(v.array(apiKeyScopeValidator)),
   },
   handler: async (ctx, args) => {
     const { userId } = await requireStaff(ctx, args.institutionId, "admin");
@@ -22,6 +25,8 @@ export const createApiKey = mutation({
     if (name === "") {
       throw new ConvexError('Give the key a name (e.g. "Campaign dashboard").');
     }
+    const scopes: ApiKeyScope[] =
+      args.scopes?.includes("write") === true ? ["read", "write"] : ["read"];
 
     const existing = await ctx.db
       .query("apiKeys")
@@ -39,7 +44,7 @@ export const createApiKey = mutation({
       name,
       keyPrefix,
       keyHash: hashApiKeySecret(secret),
-      scopes: ["read"],
+      scopes,
       createdBy: userId,
       updatedAt: Date.now(),
     });
@@ -49,7 +54,7 @@ export const createApiKey = mutation({
       entityType: "apiKey",
       entityId: apiKeyId,
       action: "create",
-      after: { name, keyPrefix },
+      after: { name, keyPrefix, scopes },
     });
     return { apiKeyId, secret, keyPrefix };
   },
@@ -128,6 +133,7 @@ export const resolveApiKey = internalQuery({
       scopes: key.scopes,
       lastUsedAt: key.lastUsedAt,
       name: key.name,
+      keyPrefix: key.keyPrefix,
     };
   },
 });

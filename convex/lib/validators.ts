@@ -50,6 +50,10 @@ export const staffRoleValidator = v.union(
 );
 export type StaffRole = "owner" | "admin" | "staff";
 
+/** What an API key may do. "write" always implies "read" (normalized at creation). */
+export const apiKeyScopeValidator = v.union(v.literal("read"), v.literal("write"));
+export type ApiKeyScope = "read" | "write";
+
 const moduleSlugLiterals = MODULES.map((module) => v.literal(module.slug));
 export const moduleSlugValidator = v.union(...moduleSlugLiterals);
 
