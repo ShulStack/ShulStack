@@ -43,10 +43,15 @@ The platform core works today and is covered by an automated test suite
   rollups, a filterable institution-wide pledge screening table, and gifts
   that land on the household ledger as matched charge/payment pairs. Pledges
   surface on person and household pages.
-- **HTTP API** — a versioned read-only REST API over households, people,
-  ledgers, and institution-wide transactions, authenticated with hashed,
+- **HTTP API** — a versioned REST API over households, people, ledgers, and
+  institution-wide transactions, with read and write scopes on hashed,
   institution-scoped API keys managed from the in-app Developer section
   (which also hosts the live API reference).
+- **Sruly, the membership agent** — an optional AI assistant bundled into
+  your deployment ([Vercel eve](https://vercel.com/docs/eve)): staff ask
+  about households, birth dates, balances, and giving history in plain
+  language. Read-only tools over the HTTP API, in-app chat, two env vars to
+  enable. See [docs/agents.md](./docs/agents.md).
 - **Domain events** — mutations emit events (`household.created`, …)
   processed by an idempotent, self-draining background processor with a
   failed-event requeue path.
@@ -127,6 +132,7 @@ Mailpit at [http://localhost:8025](http://localhost:8025).
 ## Repository layout
 
 ```
+agents/sruly        Optional bundled AI agent (Vercel eve): membership Q&A
 apps/web            Next.js app: public landing, staff dashboard, public site pages
 convex              The entire backend: schema, functions, auth, crons, seed
 convex/lib          Access control, audit logging, domain-event processing

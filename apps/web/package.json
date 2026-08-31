@@ -18,9 +18,11 @@
     "@shulstack/platform": "workspace:*",
     "@shulstack/ui": "workspace:*",
     "convex": "^1.38.0",
+    "eve": "0.47.3",
     "next": "^16.2.1",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

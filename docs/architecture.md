@@ -92,6 +92,19 @@ while bumping the pledge's `paidMinor`. The ledger therefore stays the
 single source of financial truth; campaign rollups are derived, never
 stored.
 
+## Bundled agents
+
+Optional AI agents live in `agents/*` (Vercel's eve framework, version
+pinned) and mount into the web app via `withEve()` when
+`AGENTS_ENABLED=true` — same origin, same deployment, same per-community
+isolation as everything else. An agent's entire capability is its tool
+files: Sruly ships six read-only tools over the HTTP API (authenticated
+with an operator-created read-only key in `SHULSTACK_AGENT_API_KEY`), and
+eve's default shell/file/web tools are explicitly disabled. Route auth
+fails closed, accepting ShulStack users' Convex Auth JWTs (verified against
+the deployment's own OIDC issuer), Vercel OIDC, or local dev. Details:
+[agents.md](./agents.md).
+
 ## The HTTP API and API keys
 
 `convex/httpApi.ts` (reads) and `convex/httpApiWrites.ts` (writes) serve a

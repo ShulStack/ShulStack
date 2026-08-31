@@ -417,6 +417,58 @@ textarea:focus-visible {
   background: var(--accent);
 }
 
+/* --- Agent chat ------------------------------------------------------------- */
+
+.chat-panel {
+  min-height: 420px;
+  display: grid;
+  grid-template-rows: 1fr auto;
+}
+
+.chat-messages {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  overflow-y: auto;
+  max-height: 60vh;
+  padding-bottom: 6px;
+}
+
+.chat-bubble {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+}
+
+.chat-bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.chat-bubble p + p {
+  margin-top: 8px;
+}
+
+.chat-bubble.user {
+  justify-self: end;
+  background: var(--accent-soft);
+}
+
+.chat-bubble.assistant {
+  justify-self: start;
+  background: var(--panel);
+}
+
+.chat-input {
+  display: flex;
+  gap: 10px;
+}
+
+.chat-input input {
+  flex: 1;
+}
+
 /* --- Developer pages ------------------------------------------------------- */
 
 .code-block {

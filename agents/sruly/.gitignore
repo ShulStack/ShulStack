@@ -1,0 +1,6 @@
+.eve
+.vercel
+.output
+.nitro
+dist
+*.tsbuildinfo

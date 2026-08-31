@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "web",
-      "runtimeExecutable": "pnpm",
+      "runtimeExecutable": "./bin/pnpm",
       "runtimeArgs": ["--filter", "@shulstack/web", "dev"],
       "port": 3000
     }

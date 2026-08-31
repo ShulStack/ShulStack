@@ -76,6 +76,7 @@ function WorkspaceShell({ children }: { children: ReactNode }) {
             label: "Developer",
             children: [
               { segment: "developer/api-keys", label: "API keys" },
+              { segment: "developer/agents", label: "Agents" },
               { segment: "developer/mcp", label: "MCP" },
               { segment: "developer/docs", label: "Docs" },
             ],
