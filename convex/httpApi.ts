@@ -9,11 +9,13 @@ import { ledgerDelta } from "./ledger";
 import { hashApiKeySecret } from "./lib/apiKeys";
 
 /**
- * The public read-only HTTP API, v1. Served by Convex HTTP actions on the
- * deployment's site URL, authenticated with institution-scoped API keys
+ * The public HTTP API, v1. Served by Convex HTTP actions on the deployment's
+ * site URL, authenticated with institution-scoped API keys
  * (Authorization: Bearer ssk_...). Every handler resolves the key first and
  * scopes every read to the key's institution; IDs from other institutions
- * 404 exactly like IDs that do not exist.
+ * 404 exactly like IDs that do not exist. This file carries the read
+ * endpoints and the shared plumbing; the write endpoints (gated on the
+ * "write" scope) live in httpApiWrites.ts.
  */
 
 const MAX_PAGE_SIZE = 200;
@@ -21,27 +23,31 @@ const DEFAULT_PAGE_SIZE = 50;
 const LAST_USED_REFRESH_MS = 60 * 60 * 1000;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-type ApiPrincipal = {
+export type ApiPrincipal = {
   apiKeyId: Doc<"apiKeys">["_id"];
   institutionId: Doc<"institutions">["_id"];
   scopes: string[];
   name: string;
+  keyPrefix: string;
 };
 
-function jsonResponse(status: number, body: unknown): Response {
+export function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body, null, 2), {
     status,
     headers: { "Content-Type": "application/json" },
   });
 }
 
-function errorResponse(status: number, code: string, message: string): Response {
+export function errorResponse(status: number, code: string, message: string): Response {
   return jsonResponse(status, { error: { code, message } });
 }
 
-const notFound = () => errorResponse(404, "not_found", "No such resource.");
+export const notFound = () => errorResponse(404, "not_found", "No such resource.");
 
-async function authenticate(ctx: ActionCtx, request: Request): Promise<ApiPrincipal | Response> {
+export async function authenticate(
+  ctx: ActionCtx,
+  request: Request,
+): Promise<ApiPrincipal | Response> {
   const header = request.headers.get("Authorization") ?? "";
   const match = /^Bearer\s+(\S+)$/.exec(header);
   if (match?.[1] === undefined) {
@@ -90,7 +96,7 @@ function dateParam(url: URL, name: string): string | undefined | Response {
 
 // --- DTOs ---------------------------------------------------------------------
 
-function householdDto(household: Doc<"households">) {
+export function householdDto(household: Doc<"households">) {
   return {
     id: household._id,
     displayName: household.displayName,
@@ -106,7 +112,7 @@ function householdDto(household: Doc<"households">) {
   };
 }
 
-function personDto(person: Doc<"people">) {
+export function personDto(person: Doc<"people">) {
   return {
     id: person._id,
     displayName: person.displayName,
@@ -136,7 +142,7 @@ function personDto(person: Doc<"people">) {
   };
 }
 
-function ledgerEntryDto(entry: Doc<"ledgerEntries">) {
+export function ledgerEntryDto(entry: Doc<"ledgerEntries">) {
   return {
     id: entry._id,
     householdId: entry.householdId,

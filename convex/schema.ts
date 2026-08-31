@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import {
   addressTypeValidator,
   affiliationTypeValidator,
+  apiKeyScopeValidator,
   auditActionValidator,
   campaignStatusValidator,
   contactPointLabelValidator,
@@ -96,7 +97,7 @@ export default defineSchema({
     name: v.string(),
     keyPrefix: v.string(),
     keyHash: v.string(),
-    scopes: v.array(v.literal("read")),
+    scopes: v.array(apiKeyScopeValidator),
     createdBy: v.id("users"),
     lastUsedAt: v.optional(v.number()),
     expiresAt: v.optional(v.number()),

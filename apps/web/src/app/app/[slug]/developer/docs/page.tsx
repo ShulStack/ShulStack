@@ -10,38 +10,80 @@ import { apiBaseUrl } from "../../../../../lib/api-url";
 const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL ?? "";
 
 type Endpoint = {
+  method: "GET" | "POST" | "PATCH";
   path: string;
   summary: string;
   params?: string;
 };
 
 const ENDPOINTS: Endpoint[] = [
-  { path: "/me", summary: "Introspect the key: its name, institution, and scopes." },
+  { method: "GET", path: "/me", summary: "Introspect the key: its name, institution, and scopes." },
   {
+    method: "GET",
     path: "/summary",
     summary: "Active household/people counts plus outstanding and credit balance totals.",
   },
   {
+    method: "GET",
     path: "/households",
     summary: "List households, newest first.",
     params: "limit, cursor, active=true, search",
   },
   {
+    method: "POST",
+    path: "/households",
+    summary: "Create a household. Body: displayName (required), householdType?, joinedAt?.",
+  },
+  {
+    method: "GET",
     path: "/households/{id}",
     summary: "One household with members and its billing profile.",
   },
   {
+    method: "PATCH",
+    path: "/households/{id}",
+    summary:
+      "Update a household. Body: any of displayName, householdType, billingAccountType, mailLabel, billingMailLabel, joinedAt, resignedAt, isActive.",
+  },
+  {
+    method: "GET",
     path: "/households/{id}/ledger",
     summary: "The household's ledger entries, newest date first.",
     params: "limit, cursor, from, to",
   },
   {
+    method: "POST",
+    path: "/households/{id}/ledger",
+    summary:
+      "Record a ledger entry and move the balance. Body: entryType (charge | payment | credit), amountMinor, occurredAt, category?, method?, memo?.",
+  },
+  {
+    method: "POST",
+    path: "/households/{id}/members",
+    summary:
+      "Add a person to a household (reactivates an existing membership). Body: personId, role?, isPrimaryContact?, isBillingContact?, isMailRecipient?.",
+  },
+  {
+    method: "GET",
     path: "/people",
     summary: "List people, newest first.",
     params: "limit, cursor, active=true, search",
   },
-  { path: "/people/{id}", summary: "One person with their household memberships." },
   {
+    method: "POST",
+    path: "/people",
+    summary:
+      "Create a person. Body: name fields (firstName, lastName, title, nickname, hebrew* …), gender?, dateOfBirth?.",
+  },
+  { method: "GET", path: "/people/{id}", summary: "One person with their household memberships." },
+  {
+    method: "PATCH",
+    path: "/people/{id}",
+    summary:
+      "Update a person. Body: the POST fields plus honoraryMember, eligibleForAliyah, isDeceased, isActive.",
+  },
+  {
+    method: "GET",
     path: "/transactions",
     summary: "Every ledger entry in the institution, newest date first.",
     params: "limit, cursor, from, to",
@@ -63,7 +105,7 @@ export default function ApiDocsPage() {
   return (
     <>
       <PageHeader
-        description="The read-only HTTP API, v1. Everything is scoped to this institution by the key itself — no institution parameter, no way to reach anyone else's data."
+        description="The HTTP API, v1. Everything is scoped to this institution by the key itself — no institution parameter, no way to reach anyone else's data. Reads work with any key; writes need a key with the write scope."
         title="API reference"
         actions={
           <Link className="button secondary" href={`/app/${params.slug}/developer/api-keys`}>
@@ -84,18 +126,25 @@ export default function ApiDocsPage() {
 
       <section className="card">
         <h2>Endpoints</h2>
-        <p className="muted">All endpoints are GET and return JSON.</p>
+        <p className="muted">
+          All endpoints speak JSON: GET reads, POST creates (201), PATCH updates (200). POST and
+          PATCH take a JSON object body and need the write scope.
+        </p>
         <table className="data-table">
           <thead>
             <tr>
+              <th>Method</th>
               <th>Path</th>
-              <th>Returns</th>
+              <th>Summary</th>
               <th>Query params</th>
             </tr>
           </thead>
           <tbody>
             {ENDPOINTS.map((endpoint) => (
-              <tr key={endpoint.path}>
+              <tr key={`${endpoint.method} ${endpoint.path}`}>
+                <td>
+                  <code className="code-inline">{endpoint.method}</code>
+                </td>
                 <td>
                   <code className="code-inline">{endpoint.path}</code>
                 </td>
@@ -129,10 +178,16 @@ export default function ApiDocsPage() {
             household balance (charges positive, payments and credits negative).
           </li>
           <li>
+            <strong>Scopes:</strong> every key can read; only keys created with the write scope can
+            POST/PATCH. A read-only key calling a write endpoint gets 403 with code{" "}
+            <code className="code-inline">insufficient_scope</code>.
+          </li>
+          <li>
             <strong>Errors:</strong>{" "}
             <code className="code-inline">{'{ "error": { "code", "message" } }'}</code> with 401
-            (bad key), 404 (missing or not yours — indistinguishable by design), or 400 (bad
-            parameters).
+            (bad key), 403 (key lacks the write scope), 404 (missing or not yours —
+            indistinguishable by design), or 400 (bad parameters, or a malformed body — code{" "}
+            <code className="code-inline">invalid_body</code>).
           </li>
         </ul>
       </section>
