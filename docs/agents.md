@@ -85,6 +85,18 @@ Each agent is a directory under `agents/` (its own `package.json`,
 API key — read-only unless the job truly needs writes (write tools should
 carry eve `approval` gates).
 
+## Channel-aware presentation
+
+The same agent answers differently per surface, so data never renders
+twice. The in-app chat draws tool results as cards (money-bar rankings,
+tables), and it tells Sruly so with every message (via eve's per-turn
+`clientContext`) — his text then adds only the takeaway. Channels without
+a card renderer send no such context, and the instructions' default
+applies: include the data in the text. When real channel proliferation
+arrives (Slack and beyond), eve's dynamic instructions
+(`defineInstructions` + `defineDynamic` keyed on `ctx.channel.kind`) are
+the heavier-duty version of the same idea.
+
 ## Channels roadmap
 
 - **In-app web chat** — shipped (same-origin, cookie/JWT auth).

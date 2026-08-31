@@ -76,7 +76,10 @@ export function SrulyChat({ compact = false }: { compact?: boolean }) {
           }
           setDraft("");
           void agent.send(message, {
-            clientContext: `Currently viewing: ${pathname}`,
+            clientContext: [
+              "Channel: ShulStack web chat — the UI renders your tool results as visual cards and tables automatically. Do not restate their rows in your reply.",
+              `Currently viewing: ${pathname}`,
+            ],
           });
         }}
       >
