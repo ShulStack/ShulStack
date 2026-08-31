@@ -33,7 +33,8 @@ yet — no code reads or writes them today.
 | `householdBalanceSnapshots` | Dated snapshots derived from the ledger |
 | `ledgerEntries` | Immutable charges/payments/credits/opening balances; each entry atomically moves the profile balance, and `finance.reconcileBalances` verifies the sum |
 | `campaigns` | Fundraising campaigns with optional goals and date ranges |
-| `pledges` | Pipeline records (household + optional person attribution); `paidMinor` is written only by `fundraising.recordPledgePayment`, which also posts the gift to the ledger as a matched charge/payment pair |
+| `pledges` | Pipeline records (household + optional person attribution); `paidMinor` is written only by `fundraising.recordPledgePayment`, which also posts the gift to the ledger as a matched charge/payment pair; `notes` is plain text derived from the rich `notesDoc` |
+| `pledgeInstallments` | Multi-year commitment schedules: dated splits of a pledge; when present, the schedule's sum owns the pledge's `amountMinor` (via `setPledgeSchedule`) |
 | `pages` / `siteSettings` | Per-institution site content |
 | `media` | Site media library (*reserved*) |
 

@@ -10,8 +10,9 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { type RichTextDoc, RichTextField } from "../../../../../components/rich-text-field";
 import { useCanAdminister } from "../../../../../components/use-workspace";
-import { errorMessage, todayIsoDate } from "../../../../../lib/format";
+import { errorMessage, formatIsoDate, todayIsoDate } from "../../../../../lib/format";
 
 type JoinedPledge = NonNullable<
   FunctionReturnType<typeof api.fundraising.getCampaign>
@@ -106,7 +107,7 @@ function AddPledgeForm({ campaign }: { campaign: Doc<"campaigns"> }) {
   const [personId, setPersonId] = useState<string>("");
   const [amount, setAmount] = useState("");
   const [stage, setStage] = useState<PledgeStage>("prospect");
-  const [notes, setNotes] = useState("");
+  const [notesDoc, setNotesDoc] = useState<RichTextDoc | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -164,14 +165,14 @@ function AddPledgeForm({ campaign }: { campaign: Doc<"campaigns"> }) {
               ...(personId === "" ? {} : { personId: personId as Id<"people"> }),
               amountMinor,
               stage,
-              ...(notes.trim() === "" ? {} : { notes }),
+              ...(notesDoc === null ? {} : { notesDoc }),
             })
               .then(() => {
                 setSelected(null);
                 setPersonId("");
                 setAmount("");
                 setStage("prospect");
-                setNotes("");
+                setNotesDoc(null);
               })
               .catch((caught) => setError(errorMessage(caught)))
               .finally(() => setPending(false));
@@ -229,14 +230,7 @@ function AddPledgeForm({ campaign }: { campaign: Doc<"campaigns"> }) {
             )}
           </Field>
           <Field label="Notes">
-            {(id) => (
-              <input
-                id={id}
-                onChange={(event) => setNotes(event.target.value)}
-                placeholder="Met at kiddush…"
-                value={notes}
-              />
-            )}
+            {() => <RichTextField onChange={setNotesDoc} placeholder="Met at kiddush…" />}
           </Field>
           <Button disabled={pending} type="submit">
             Add pledge
@@ -272,10 +266,20 @@ function PledgeBoard({ pledges, slug }: { pledges: JoinedPledge[]; slug: string 
   );
 }
 
+function nextInstallment(installments: JoinedPledge["installments"]): string | undefined {
+  const today = todayIsoDate();
+  return (
+    installments.find((row) => row.dueDate >= today)?.dueDate ??
+    installments[installments.length - 1]?.dueDate
+  );
+}
+
 function PledgeCard({ pledge, slug }: { pledge: JoinedPledge; slug: string }) {
   const updatePledge = useMutation(api.fundraising.updatePledge);
   const [error, setError] = useState<string | null>(null);
-  const [showGiftForm, setShowGiftForm] = useState(false);
+  const [panel, setPanel] = useState<"gift" | "notes" | "schedule" | null>(null);
+  const toggle = (next: "gift" | "notes" | "schedule") =>
+    setPanel((current) => (current === next ? null : next));
 
   return (
     <article className="pledge-card">
@@ -293,6 +297,12 @@ function PledgeCard({ pledge, slug }: { pledge: JoinedPledge; slug: string }) {
           </>
         )}
       </p>
+      {pledge.installments.length > 0 ? (
+        <p className="muted pledge-notes">
+          {pledge.installments.length} installments · next{" "}
+          {formatIsoDate(nextInstallment(pledge.installments) ?? "")}
+        </p>
+      ) : null}
       {pledge.notes === undefined ? null : <p className="muted pledge-notes">{pledge.notes}</p>}
       <div className="pledge-card-actions">
         <select
@@ -312,15 +322,148 @@ function PledgeCard({ pledge, slug }: { pledge: JoinedPledge; slug: string }) {
             </option>
           ))}
         </select>
-        <Button onClick={() => setShowGiftForm((current) => !current)} variant="secondary">
-          {showGiftForm ? "Close" : "Record gift"}
+        <Button onClick={() => toggle("gift")} variant="secondary">
+          {panel === "gift" ? "Close" : "Gift"}
+        </Button>
+        <Button onClick={() => toggle("notes")} variant="secondary">
+          Notes
+        </Button>
+        <Button onClick={() => toggle("schedule")} variant="secondary">
+          Schedule
         </Button>
       </div>
-      {showGiftForm ? (
-        <GiftForm onDone={() => setShowGiftForm(false)} pledgeId={pledge.pledgeId} />
+      {panel === "gift" ? (
+        <GiftForm onDone={() => setPanel(null)} pledgeId={pledge.pledgeId} />
       ) : null}
+      {panel === "notes" ? <NotesForm onDone={() => setPanel(null)} pledge={pledge} /> : null}
+      {panel === "schedule" ? <ScheduleForm onDone={() => setPanel(null)} pledge={pledge} /> : null}
       {error === null ? null : <p className="form-error">{error}</p>}
     </article>
+  );
+}
+
+function NotesForm({ pledge, onDone }: { pledge: JoinedPledge; onDone: () => void }) {
+  const updatePledge = useMutation(api.fundraising.updatePledge);
+  const [doc, setDoc] = useState<RichTextDoc | null>(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const initialDoc =
+    (pledge.notesDoc as RichTextDoc | undefined) ??
+    (pledge.notes === undefined ? undefined : plainToDoc(pledge.notes));
+
+  return (
+    <div className="gift-form">
+      <RichTextField initialDoc={initialDoc} onChange={setDoc} placeholder="Notes…" />
+      <Button
+        disabled={pending || doc === null}
+        onClick={() => {
+          if (doc === null) {
+            return;
+          }
+          setError(null);
+          setPending(true);
+          updatePledge({ pledgeId: pledge.pledgeId, notesDoc: doc })
+            .then(onDone)
+            .catch((caught) => setError(errorMessage(caught)))
+            .finally(() => setPending(false));
+        }}
+        variant="secondary"
+      >
+        Save notes
+      </Button>
+      {error === null ? null : <p className="form-error">{error}</p>}
+    </div>
+  );
+}
+
+function plainToDoc(text: string): RichTextDoc {
+  return {
+    type: "doc",
+    content: text.split("\n").map((line) => ({
+      type: "paragraph",
+      content: line === "" ? [] : [{ type: "text", text: line }],
+    })),
+  };
+}
+
+type InstallmentDraft = { dueDate: string; amount: string };
+
+function ScheduleForm({ pledge, onDone }: { pledge: JoinedPledge; onDone: () => void }) {
+  const setPledgeSchedule = useMutation(api.fundraising.setPledgeSchedule);
+  const [rows, setRows] = useState<InstallmentDraft[]>(() =>
+    pledge.installments.length > 0
+      ? pledge.installments.map((row) => ({
+          dueDate: row.dueDate,
+          amount: (row.amountMinor / 100).toFixed(2),
+        }))
+      : [{ dueDate: todayIsoDate(), amount: "" }],
+  );
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const update = (index: number, patch: Partial<InstallmentDraft>) =>
+    setRows((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+
+  return (
+    <div className="gift-form">
+      <p className="muted">
+        Split this pledge over time — the pledge total becomes the sum of the installments.
+      </p>
+      {rows.map((row, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: drafts have no ids
+        <div className="installment-row" key={index}>
+          <input
+            aria-label={`Installment ${index + 1} due date`}
+            onChange={(event) => update(index, { dueDate: event.target.value })}
+            type="date"
+            value={row.dueDate}
+          />
+          <input
+            aria-label={`Installment ${index + 1} amount`}
+            onChange={(event) => update(index, { amount: event.target.value })}
+            placeholder="10,000"
+            value={row.amount}
+          />
+          <Button
+            onClick={() => setRows((current) => current.filter((_, i) => i !== index))}
+            variant="danger"
+          >
+            ✕
+          </Button>
+        </div>
+      ))}
+      <div className="copy-row">
+        <Button
+          onClick={() => setRows((current) => [...current, { dueDate: "", amount: "" }])}
+          variant="secondary"
+        >
+          Add installment
+        </Button>
+        <Button
+          disabled={pending}
+          onClick={() => {
+            setError(null);
+            let installments: { dueDate: string; amountMinor: number }[];
+            try {
+              installments = rows
+                .filter((row) => row.dueDate !== "" || row.amount.trim() !== "")
+                .map((row) => ({ dueDate: row.dueDate, amountMinor: parseMoney(row.amount) }));
+            } catch (caught) {
+              setError(errorMessage(caught));
+              return;
+            }
+            setPending(true);
+            setPledgeSchedule({ pledgeId: pledge.pledgeId, installments })
+              .then(onDone)
+              .catch((caught) => setError(errorMessage(caught)))
+              .finally(() => setPending(false));
+          }}
+        >
+          Save schedule
+        </Button>
+      </div>
+      {error === null ? null : <p className="form-error">{error}</p>}
+    </div>
   );
 }
 

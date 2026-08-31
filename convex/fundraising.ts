@@ -8,10 +8,12 @@ import { recordLedgerEntry } from "./ledger";
 import { requireStaff, staffOrNull } from "./lib/access";
 import { logAudit } from "./lib/audit";
 import { emitDomainEvent } from "./lib/domainEvents";
+import { richTextToPlain } from "./lib/richText";
 import {
   assertIsoDate,
   campaignStatusValidator,
   isoDate,
+  metadataValidator,
   optionalIsoDate,
   pledgeStageValidator,
 } from "./lib/validators";
@@ -211,6 +213,10 @@ export async function joinPledge(
   const campaign = preloaded.campaign ?? (await ctx.db.get(pledge.campaignId));
   const household = await ctx.db.get(pledge.householdId);
   const person = pledge.personId === undefined ? null : await ctx.db.get(pledge.personId);
+  const installments = await ctx.db
+    .query("pledgeInstallments")
+    .withIndex("by_pledge_due", (q) => q.eq("pledgeId", pledge._id))
+    .collect();
   return {
     pledgeId: pledge._id,
     campaignId: pledge.campaignId,
@@ -223,8 +229,110 @@ export async function joinPledge(
     paidMinor: pledge.paidMinor,
     stage: pledge.stage,
     notes: pledge.notes,
+    notesDoc: pledge.notesDoc,
+    installments: installments.map((row) => ({
+      dueDate: row.dueDate,
+      amountMinor: row.amountMinor,
+    })),
     updatedAt: pledge.updatedAt,
   };
+}
+
+const MAX_INSTALLMENTS = 120;
+
+/**
+ * Replace a pledge's installment schedule wholesale. With a non-empty
+ * schedule, the schedule owns the commitment: the pledge's amountMinor is
+ * set to the schedule sum. An empty array clears the schedule and leaves
+ * the amount as-is.
+ */
+export const setPledgeSchedule = mutation({
+  args: {
+    pledgeId: v.id("pledges"),
+    installments: v.array(
+      v.object({
+        dueDate: isoDate,
+        amountMinor: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const pledge = await ctx.db.get(args.pledgeId);
+    if (pledge === null) {
+      throw new ConvexError("Pledge not found.");
+    }
+    const { userId } = await requireStaff(ctx, pledge.institutionId);
+    if (args.installments.length > MAX_INSTALLMENTS) {
+      throw new ConvexError(`Schedules are limited to ${MAX_INSTALLMENTS} installments.`);
+    }
+    let sum = 0;
+    for (const installment of args.installments) {
+      assertIsoDate(installment.dueDate);
+      if (!Number.isSafeInteger(installment.amountMinor) || installment.amountMinor <= 0) {
+        throw new ConvexError("Installment amounts must be positive integers in minor units.");
+      }
+      sum += installment.amountMinor;
+    }
+
+    const now = Date.now();
+    const existing = await ctx.db
+      .query("pledgeInstallments")
+      .withIndex("by_pledge_due", (q) => q.eq("pledgeId", pledge._id))
+      .collect();
+    for (const row of existing) {
+      await ctx.db.delete(row._id);
+    }
+    for (const installment of args.installments) {
+      await ctx.db.insert("pledgeInstallments", {
+        institutionId: pledge.institutionId,
+        pledgeId: pledge._id,
+        dueDate: installment.dueDate,
+        amountMinor: installment.amountMinor,
+        updatedAt: now,
+      });
+    }
+    if (args.installments.length > 0) {
+      await ctx.db.patch(pledge._id, { amountMinor: sum, updatedAt: now });
+    } else {
+      await ctx.db.patch(pledge._id, { updatedAt: now });
+    }
+
+    await logAudit(ctx, {
+      institutionId: pledge.institutionId,
+      actorUserId: userId,
+      entityType: "pledge",
+      entityId: pledge._id,
+      action: "update",
+      before: { installments: existing.length, amountMinor: pledge.amountMinor },
+      after: {
+        installments: args.installments.length,
+        amountMinor: args.installments.length > 0 ? sum : pledge.amountMinor,
+      },
+    });
+    await emitDomainEvent(ctx, {
+      institutionId: pledge.institutionId,
+      eventName: "pledge.updated",
+      payload: { pledgeId: pledge._id },
+    });
+  },
+});
+
+/** Resolve incoming note args to stored fields: a rich `notesDoc` wins and
+ * derives the plain `notes`; an empty document clears both. */
+function noteFields(args: { notes?: string; notesDoc?: Record<string, unknown> }) {
+  if (args.notesDoc !== undefined) {
+    const plain = richTextToPlain(args.notesDoc);
+    return plain === ""
+      ? { notes: undefined, notesDoc: undefined }
+      : { notes: plain, notesDoc: args.notesDoc };
+  }
+  if (args.notes !== undefined) {
+    const trimmed = args.notes.trim();
+    return trimmed === ""
+      ? { notes: undefined, notesDoc: undefined }
+      : { notes: trimmed, notesDoc: undefined };
+  }
+  return null;
 }
 
 export const createPledge = mutation({
@@ -235,6 +343,7 @@ export const createPledge = mutation({
     amountMinor: v.number(),
     stage: v.optional(pledgeStageValidator),
     notes: v.optional(v.string()),
+    notesDoc: v.optional(metadataValidator),
   },
   handler: async (ctx, args) => {
     const campaign = await ctx.db.get(args.campaignId);
@@ -254,6 +363,7 @@ export const createPledge = mutation({
     }
     assertGoalAmount(args.amountMinor, "Pledge amount");
 
+    const noted = noteFields(args);
     const pledgeId = await ctx.db.insert("pledges", {
       institutionId: campaign.institutionId,
       campaignId: campaign._id,
@@ -262,7 +372,8 @@ export const createPledge = mutation({
       amountMinor: args.amountMinor,
       paidMinor: 0,
       stage: args.stage ?? "prospect",
-      notes: args.notes,
+      notes: noted?.notes,
+      notesDoc: noted?.notesDoc,
       updatedAt: Date.now(),
     });
     await logAudit(ctx, {
@@ -294,6 +405,7 @@ export const updatePledge = mutation({
     amountMinor: v.optional(v.number()),
     personId: v.optional(v.union(v.id("people"), v.null())),
     notes: v.optional(v.string()),
+    notesDoc: v.optional(metadataValidator),
   },
   handler: async (ctx, args) => {
     const pledge = await ctx.db.get(args.pledgeId);
@@ -309,13 +421,12 @@ export const updatePledge = mutation({
       }
     }
 
+    const noted = noteFields(args);
     await ctx.db.patch(pledge._id, {
       ...(args.stage === undefined ? {} : { stage: args.stage }),
       ...(args.amountMinor === undefined ? {} : { amountMinor: args.amountMinor }),
       ...(args.personId === undefined ? {} : { personId: args.personId ?? undefined }),
-      ...(args.notes === undefined
-        ? {}
-        : { notes: args.notes.trim() === "" ? undefined : args.notes }),
+      ...(noted === null ? {} : noted),
       updatedAt: Date.now(),
     });
     await logAudit(ctx, {

@@ -201,6 +201,99 @@ describe("fundraising", () => {
     expect(await outsider.as.query(api.fundraising.getCampaign, { campaignId })).toBeNull();
   });
 
+  test("installment schedules own the pledge amount", async () => {
+    const pledgeId = await owner.as.mutation(api.fundraising.createPledge, {
+      campaignId,
+      householdId,
+      amountMinor: 0,
+      stage: "asked",
+    });
+    await owner.as.mutation(api.fundraising.setPledgeSchedule, {
+      pledgeId,
+      installments: [
+        { dueDate: "2026-12-01", amountMinor: 1_000_000 },
+        { dueDate: "2027-12-01", amountMinor: 1_000_000 },
+        { dueDate: "2028-12-01", amountMinor: 500_000 },
+      ],
+    });
+
+    let pledges = await owner.as.query(api.fundraising.listPledges, { institutionId });
+    expect(pledges[0]).toMatchObject({ amountMinor: 2_500_000 });
+    expect(pledges[0]?.installments.map((row) => row.dueDate)).toEqual([
+      "2026-12-01",
+      "2027-12-01",
+      "2028-12-01",
+    ]);
+
+    // Wholesale replacement: no leftovers, amount re-synced.
+    await owner.as.mutation(api.fundraising.setPledgeSchedule, {
+      pledgeId,
+      installments: [{ dueDate: "2027-01-15", amountMinor: 750_000 }],
+    });
+    pledges = await owner.as.query(api.fundraising.listPledges, { institutionId });
+    expect(pledges[0]).toMatchObject({ amountMinor: 750_000 });
+    expect(pledges[0]?.installments).toEqual([{ dueDate: "2027-01-15", amountMinor: 750_000 }]);
+
+    // Clearing keeps the amount but drops the schedule.
+    await owner.as.mutation(api.fundraising.setPledgeSchedule, { pledgeId, installments: [] });
+    pledges = await owner.as.query(api.fundraising.listPledges, { institutionId });
+    expect(pledges[0]).toMatchObject({ amountMinor: 750_000 });
+    expect(pledges[0]?.installments).toEqual([]);
+
+    await expect(
+      owner.as.mutation(api.fundraising.setPledgeSchedule, {
+        pledgeId,
+        installments: [{ dueDate: "not-a-date", amountMinor: 100 }],
+      }),
+    ).rejects.toThrow(/YYYY-MM-DD/);
+    await expect(
+      owner.as.mutation(api.fundraising.setPledgeSchedule, {
+        pledgeId,
+        installments: [{ dueDate: "2027-01-15", amountMinor: -5 }],
+      }),
+    ).rejects.toThrow(/positive/);
+
+    const outsider = await signUp(t, "outsider@example.com");
+    await createInstitutionAs(outsider.as, "other-shul", "Other Shul");
+    await expect(
+      outsider.as.mutation(api.fundraising.setPledgeSchedule, { pledgeId, installments: [] }),
+    ).rejects.toThrow(/access/);
+  });
+
+  test("rich-text notes store the document and derive plain text", async () => {
+    const doc = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "Met at " },
+            { type: "text", marks: [{ type: "bold" }], text: "kiddush" },
+          ],
+        },
+        { type: "paragraph", content: [{ type: "text", text: "Follow up in Elul." }] },
+      ],
+    };
+    const pledgeId = await owner.as.mutation(api.fundraising.createPledge, {
+      campaignId,
+      householdId,
+      amountMinor: 10_000,
+      notesDoc: doc,
+    });
+    let pledges = await owner.as.query(api.fundraising.listPledges, { institutionId });
+    expect(pledges[0]?.notes).toBe("Met at kiddush\nFollow up in Elul.");
+    expect(pledges[0]?.notesDoc).toEqual(doc);
+
+    // An empty document clears both fields.
+    await owner.as.mutation(api.fundraising.updatePledge, {
+      pledgeId,
+      notesDoc: { type: "doc", content: [{ type: "paragraph" }] },
+    });
+    pledges = await owner.as.query(api.fundraising.listPledges, { institutionId });
+    expect(pledges[0]?.notes).toBeUndefined();
+    expect(pledges[0]?.notesDoc).toBeUndefined();
+  });
+
   test("the institution-wide pledge list joins names for screening", async () => {
     await owner.as.mutation(api.fundraising.createPledge, {
       campaignId,

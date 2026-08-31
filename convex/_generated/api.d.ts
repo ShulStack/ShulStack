@@ -26,6 +26,7 @@ import type * as lib_access from "../lib/access.js";
 import type * as lib_apiKeys from "../lib/apiKeys.js";
 import type * as lib_audit from "../lib/audit.js";
 import type * as lib_domainEvents from "../lib/domainEvents.js";
+import type * as lib_richText from "../lib/richText.js";
 import type * as lib_validators from "../lib/validators.js";
 import type * as platform from "../platform.js";
 import type * as seed from "../seed.js";
@@ -56,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   "lib/apiKeys": typeof lib_apiKeys;
   "lib/audit": typeof lib_audit;
   "lib/domainEvents": typeof lib_domainEvents;
+  "lib/richText": typeof lib_richText;
   "lib/validators": typeof lib_validators;
   platform: typeof platform;
   seed: typeof seed;

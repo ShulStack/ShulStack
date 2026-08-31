@@ -72,6 +72,10 @@ patterns can be rebuilt, and each has a simpler Convex-native shape:
   surface stuck pledges ("asked 60+ days ago") and expected receipts.
 - **Donor enrichment** — attach research/enrichment data to households and
   people (the `metadata` bags and external references are ready for it).
+- ~~Multi-year pledge schedules~~ and ~~rich-text notes (TipTap)~~ —
+  shipped: installment splits own the pledge total, and the shared
+  `RichTextField` component is the pattern for richer text inputs across
+  the app as forms get revisited.
 - **`/` search + command menu** across members, households, and pledges.
 
 ## Later

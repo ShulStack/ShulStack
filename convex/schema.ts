@@ -389,7 +389,9 @@ export default defineSchema({
   // A pledge is a relationship being worked through the pipeline, tied to the
   // household (the billing unit) with optional attribution to the person.
   // `paidMinor` is maintained only by fundraising.recordPledgePayment, which
-  // also writes the money itself onto the household ledger.
+  // also writes the money itself onto the household ledger. `notes` is plain
+  // text derived server-side from `notesDoc` (a rich-text document) so lists
+  // and filters never need to parse the document.
   pledges: defineTable({
     institutionId: v.id("institutions"),
     campaignId: v.id("campaigns"),
@@ -399,12 +401,25 @@ export default defineSchema({
     paidMinor: v.number(),
     stage: pledgeStageValidator,
     notes: optionalText,
+    notesDoc: v.optional(metadataValidator),
     updatedAt: v.number(),
   })
     .index("by_institution_stage", ["institutionId", "stage"])
     .index("by_campaign_stage", ["campaignId", "stage"])
     .index("by_household", ["householdId"])
     .index("by_person", ["personId"]),
+
+  // Multi-year commitments: a pledge optionally splits into dated
+  // installments (e.g. $10k in each of five years). When a schedule exists,
+  // the pledge's amountMinor is kept equal to the schedule's sum by
+  // fundraising.setPledgeSchedule — the schedule is the source of truth.
+  pledgeInstallments: defineTable({
+    institutionId: v.id("institutions"),
+    pledgeId: v.id("pledges"),
+    dueDate: v.string(),
+    amountMinor: v.number(),
+    updatedAt: v.number(),
+  }).index("by_pledge_due", ["pledgeId", "dueDate"]),
 
   // --- Content ---------------------------------------------------------------
 
