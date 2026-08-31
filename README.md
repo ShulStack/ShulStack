@@ -38,6 +38,11 @@ The platform core works today and is covered by an automated test suite
   summary opening balance instead of double-counting it.
 - **Website** — per-institution pages with a block editor and
   draft/publish/archive flow, served on a cached public site route.
+- **Fundraising** — campaigns with goals, a pledge pipeline (prospect →
+  cultivating → asked → pledged → fulfilled) on a board with per-stage
+  rollups, a filterable institution-wide pledge screening table, and gifts
+  that land on the household ledger as matched charge/payment pairs. Pledges
+  surface on person and household pages.
 - **HTTP API** — a versioned read-only REST API over households, people,
   ledgers, and institution-wide transactions, authenticated with hashed,
   institution-scoped API keys managed from the in-app Developer section

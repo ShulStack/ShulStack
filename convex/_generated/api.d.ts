@@ -15,6 +15,7 @@ import type * as crons from "../crons.js";
 import type * as developer from "../developer.js";
 import type * as events from "../events.js";
 import type * as finance from "../finance.js";
+import type * as fundraising from "../fundraising.js";
 import type * as http from "../http.js";
 import type * as httpApi from "../httpApi.js";
 import type * as imports from "../imports.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   developer: typeof developer;
   events: typeof events;
   finance: typeof finance;
+  fundraising: typeof fundraising;
   http: typeof http;
   httpApi: typeof httpApi;
   imports: typeof imports;

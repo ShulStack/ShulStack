@@ -323,6 +323,100 @@ textarea:focus-visible {
   flex-wrap: wrap;
 }
 
+/* --- Fundraising ------------------------------------------------------------ */
+
+.pledge-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(230px, 1fr);
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.pledge-column {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--muted);
+  min-height: 140px;
+}
+
+.pledge-column-header h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 15px;
+}
+
+.pledge-column-header p {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+.pledge-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.pledge-card p {
+  margin: 0;
+}
+
+.pledge-amounts {
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.pledge-notes {
+  font-size: 13px;
+}
+
+.pledge-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pledge-card-actions select {
+  flex: 1;
+  min-width: 0;
+}
+
+.gift-form {
+  display: grid;
+  gap: 6px;
+}
+
+.goal-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.goal-progress-track {
+  display: inline-block;
+  width: 90px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.goal-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
 /* --- Developer pages ------------------------------------------------------- */
 
 .code-block {

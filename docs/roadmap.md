@@ -42,6 +42,29 @@ of it.
    so AI agents can query it safely. The foundation shipped: the read-only
    HTTP API with institution-scoped API keys; MCP rides on the same keys.
 
+## Fundraising CRM buildout
+
+The fundraising core shipped (campaigns, the pledge pipeline board,
+screening table, ledger-backed gifts). The next layers deliberately
+reimplement the strongest UX patterns from Twenty (twentyhq/twenty) — its
+code is AGPLv3 and cannot be copied into this MIT codebase, but its
+patterns can be rebuilt, and each has a simpler Convex-native shape:
+
+- **Saved views** — a `views` table (filters, sorts, visible columns,
+  layout, shared/personal) so "Lapsed donors" or "Open pledges — Building"
+  are one click.
+- **Filter chips + operator registry** — composable field/operator/value
+  filters rendered as removable chips, with a per-field-type operator map.
+- **Inline cell editing** in the screening table (text/number/select
+  first), so a phone fix or amount tweak doesn't require opening a record.
+- **Side-panel record preview** driven by a `?record=` param, for triaging
+  a filtered list without losing your place.
+- **Stage timestamps** — record `stageEnteredAt` in the stage mutation to
+  surface stuck pledges ("asked 60+ days ago") and expected receipts.
+- **Donor enrichment** — attach research/enrichment data to households and
+  people (the `metadata` bags and external references are ready for it).
+- **`/` search + command menu** across members, households, and pledges.
+
 ## Later
 
 - Production container image for the self-hosted web app (the compose stack

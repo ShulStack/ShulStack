@@ -41,3 +41,6 @@ next-env.d.ts
 .next
 # build outputs
 dist/
+
+# Parallel-agent worktree checkouts
+.claude/worktrees/

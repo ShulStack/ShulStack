@@ -32,6 +32,8 @@ yet — no code reads or writes them today.
 | `householdBillingProfiles` | Delivery method, discounts, and the live balance (maintained only by the ledger) |
 | `householdBalanceSnapshots` | Dated snapshots derived from the ledger |
 | `ledgerEntries` | Immutable charges/payments/credits/opening balances; each entry atomically moves the profile balance, and `finance.reconcileBalances` verifies the sum |
+| `campaigns` | Fundraising campaigns with optional goals and date ranges |
+| `pledges` | Pipeline records (household + optional person attribution); `paidMinor` is written only by `fundraising.recordPledgePayment`, which also posts the gift to the ledger as a matched charge/payment pair |
 | `pages` / `siteSettings` | Per-institution site content |
 | `media` | Site media library (*reserved*) |
 

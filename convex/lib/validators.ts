@@ -1,4 +1,4 @@
-import { MODULES } from "@shulstack/platform";
+import { MODULES, PLEDGE_STAGES } from "@shulstack/platform";
 import { ConvexError, v } from "convex/values";
 
 /**
@@ -131,3 +131,8 @@ export const pageStatusValidator = v.union(
   v.literal("published"),
   v.literal("archived"),
 );
+
+const pledgeStageLiterals = PLEDGE_STAGES.map((stage) => v.literal(stage.slug));
+export const pledgeStageValidator = v.union(...pledgeStageLiterals);
+
+export const campaignStatusValidator = v.union(v.literal("active"), v.literal("archived"));

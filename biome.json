@@ -11,6 +11,7 @@
       "!**/.convex",
       "!**/.task",
       "!**/.hermit",
+      "!**/.claude/worktrees",
       "!convex/_generated"
     ]
   },

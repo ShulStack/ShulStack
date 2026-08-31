@@ -59,11 +59,15 @@ function WorkspaceShell({ children }: { children: ReactNode }) {
   }
 
   const cmsEnabled = workspace.modules.some((module) => module.slug === "cms" && module.enabled);
+  const fundraisingEnabled = workspace.modules.some(
+    (module) => module.slug === "fundraising" && module.enabled,
+  );
   const isAdmin = workspace.role === "admin" || workspace.role === "owner";
   const navItems: NavEntry[] = [
     { segment: "", label: "Overview" },
     { segment: "households", label: "Households" },
     { segment: "people", label: "People" },
+    ...(fundraisingEnabled ? [{ segment: "fundraising", label: "Fundraising" }] : []),
     ...(cmsEnabled ? [{ segment: "website", label: "Website" }] : []),
     ...(isAdmin ? [{ segment: "import", label: "Import" }] : []),
     ...(isAdmin

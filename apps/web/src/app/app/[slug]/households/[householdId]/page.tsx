@@ -9,12 +9,21 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { PledgesCard } from "../../../../../components/pledge-list";
+import { useWorkspace } from "../../../../../components/use-workspace";
 import { errorMessage, formatIsoDate, todayIsoDate } from "../../../../../lib/format";
 
 export default function HouseholdDetailPage() {
   const params = useParams<{ slug: string; householdId: string }>();
   const householdId = params.householdId as Id<"households">;
   const details = useQuery(api.crm.getHousehold, { householdId });
+  const workspace = useWorkspace();
+  const fundraisingEnabled =
+    workspace?.modules.some((module) => module.slug === "fundraising" && module.enabled) ?? false;
+  const pledges = useQuery(
+    api.fundraising.listPledgesForHousehold,
+    fundraisingEnabled ? { householdId } : "skip",
+  );
 
   if (details === undefined) {
     return <p className="muted">Loading…</p>;
@@ -50,6 +59,7 @@ export default function HouseholdDetailPage() {
         slug={params.slug}
       />
       <BillingCard billingProfile={billingProfile} householdId={household._id} />
+      {fundraisingEnabled ? <PledgesCard pledges={pledges} slug={params.slug} /> : null}
     </>
   );
 }

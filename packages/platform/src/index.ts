@@ -1,5 +1,13 @@
 export { csvToRecords, normalizeHeader, parseCsv } from "./csv";
 export {
+  isPledgeStage,
+  OPEN_PLEDGE_STAGES,
+  PLEDGE_STAGE_SLUGS,
+  PLEDGE_STAGES,
+  type PledgeStage,
+  pledgeStageLabel,
+} from "./fundraising";
+export {
   DEFAULT_ENABLED_MODULES,
   isModuleSlug,
   MODULE_SLUGS,

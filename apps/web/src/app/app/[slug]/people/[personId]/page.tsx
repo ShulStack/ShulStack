@@ -8,12 +8,21 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { PledgesCard } from "../../../../../components/pledge-list";
+import { useWorkspace } from "../../../../../components/use-workspace";
 import { errorMessage } from "../../../../../lib/format";
 
 export default function PersonDetailPage() {
   const params = useParams<{ slug: string; personId: string }>();
   const personId = params.personId as Id<"people">;
   const details = useQuery(api.crm.getPerson, { personId });
+  const workspace = useWorkspace();
+  const fundraisingEnabled =
+    workspace?.modules.some((module) => module.slug === "fundraising" && module.enabled) ?? false;
+  const pledges = useQuery(
+    api.fundraising.listPledgesForPerson,
+    fundraisingEnabled ? { personId } : "skip",
+  );
 
   if (details === undefined) {
     return <p className="muted">Loading…</p>;
@@ -61,6 +70,7 @@ export default function PersonDetailPage() {
           </ul>
         )}
       </Card>
+      {fundraisingEnabled ? <PledgesCard pledges={pledges} slug={params.slug} /> : null}
     </>
   );
 }

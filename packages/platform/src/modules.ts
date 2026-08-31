@@ -86,6 +86,7 @@ export const DEFAULT_ENABLED_MODULES: readonly ModuleSlug[] = [
   "finance",
   "cms",
   "member-portal",
+  "fundraising",
 ];
 
 export function isModuleSlug(value: string): value is ModuleSlug {

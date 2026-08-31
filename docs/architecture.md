@@ -80,6 +80,18 @@ no client-callable "write audit log" endpoint, so the trail cannot be forged.
 The first real handler provisions a billing profile for every new household,
 so finance flows never see a missing profile.
 
+## Fundraising
+
+Campaigns and pledges (`fundraising.ts`) sit on top of the CRM and the
+ledger rather than beside them: a pledge references the household (the
+billing unit) with optional person attribution, the pipeline stage lives on
+the pledge and is only advanced by mutations, and `recordPledgePayment`
+writes each gift onto the household ledger as a matched charge/payment pair
+(net zero on the balance, the same shape gifts have in ShulCloud exports)
+while bumping the pledge's `paidMinor`. The ledger therefore stays the
+single source of financial truth; campaign rollups are derived, never
+stored.
+
 ## The HTTP API and API keys
 
 `convex/httpApi.ts` serves a versioned, read-only REST API (`/api/v1/…`) on

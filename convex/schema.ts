@@ -6,6 +6,7 @@ import {
   addressTypeValidator,
   affiliationTypeValidator,
   auditActionValidator,
+  campaignStatusValidator,
   contactPointLabelValidator,
   contactPointTypeValidator,
   domainEventStatusValidator,
@@ -17,6 +18,7 @@ import {
   moduleSlugValidator,
   optionalIsoDate,
   pageStatusValidator,
+  pledgeStageValidator,
   staffRoleValidator,
 } from "./lib/validators";
 
@@ -369,6 +371,39 @@ export default defineSchema({
   })
     .index("by_household_date", ["householdId", "occurredAt"])
     .index("by_institution_date", ["institutionId", "occurredAt"]),
+
+  // --- Fundraising -----------------------------------------------------------
+
+  campaigns: defineTable({
+    institutionId: v.id("institutions"),
+    name: v.string(),
+    description: optionalText,
+    goalMinor: v.optional(v.number()),
+    startDate: optionalIsoDate,
+    endDate: optionalIsoDate,
+    status: campaignStatusValidator,
+    updatedAt: v.number(),
+  }).index("by_institution", ["institutionId"]),
+
+  // A pledge is a relationship being worked through the pipeline, tied to the
+  // household (the billing unit) with optional attribution to the person.
+  // `paidMinor` is maintained only by fundraising.recordPledgePayment, which
+  // also writes the money itself onto the household ledger.
+  pledges: defineTable({
+    institutionId: v.id("institutions"),
+    campaignId: v.id("campaigns"),
+    householdId: v.id("households"),
+    personId: v.optional(v.id("people")),
+    amountMinor: v.number(),
+    paidMinor: v.number(),
+    stage: pledgeStageValidator,
+    notes: optionalText,
+    updatedAt: v.number(),
+  })
+    .index("by_institution_stage", ["institutionId", "stage"])
+    .index("by_campaign_stage", ["campaignId", "stage"])
+    .index("by_household", ["householdId"])
+    .index("by_person", ["personId"]),
 
   // --- Content ---------------------------------------------------------------
 
