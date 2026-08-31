@@ -39,8 +39,20 @@ of it.
 6. **Recurring dues billing** — generate annual/monthly charges onto the
    ledger from a dues schedule.
 7. **MCP server for agents** — expose the membership/finance data over MCP
-   so AI agents can query it safely. The foundation shipped: the read-only
-   HTTP API with institution-scoped API keys; MCP rides on the same keys.
+   so AI agents can query it safely. The foundation shipped: the HTTP API
+   with institution-scoped, read/write-scoped API keys; MCP rides on them.
+8. **Bundled agents (Vercel eve)** — ship optional agents *inside* the main
+   app via eve's `withEve()` multi-agent mount (researched 2026-08:
+   eve is Vercel's Apache-2.0 agent framework, public preview since
+   June 2026 — pin the version). Because every community already runs its
+   own ShulStack deployment, bundling inherits per-shul isolation, billing,
+   and keys, and agents update with the app — a separate deploy-button
+   project would be a detached clone that never gets fixes. First agent:
+   **Sruly**, membership Q&A over read-only API tools. Channel order: in-app
+   web chat (same-origin, cookie auth) → Slack via Vercel Connect →
+   WhatsApp as a documented guide (Meta Business setup is on the operator)
+   → eve's MCP channel as a bonus. An "Agents" page under Developer is the
+   enable/configure surface (toggling provisions the agent's scoped key).
 
 ## Fundraising CRM buildout
 
