@@ -20,6 +20,8 @@ import {
   createHouseholdHandler,
   createPersonHandler,
   householdSubresourceHandler,
+  pledgeGiftHandler,
+  pledgePatchHandler,
   updateHouseholdHandler,
   updatePersonHandler,
 } from "./httpApiWrites";
@@ -50,6 +52,8 @@ http.route({
 });
 http.route({ path: "/api/v1/campaigns", method: "GET", handler: campaignsHandler });
 http.route({ path: "/api/v1/pledges", method: "GET", handler: pledgesHandler });
+http.route({ pathPrefix: "/api/v1/pledges/", method: "PATCH", handler: pledgePatchHandler });
+http.route({ pathPrefix: "/api/v1/pledges/", method: "POST", handler: pledgeGiftHandler });
 
 // Write endpoints (403 insufficient_scope for read-only keys).
 http.route({ path: "/api/v1/households", method: "POST", handler: createHouseholdHandler });

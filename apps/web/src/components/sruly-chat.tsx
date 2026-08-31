@@ -45,8 +45,15 @@ export function SrulyChat({ compact = false }: { compact?: boolean }) {
               key={message.id}
             >
               {message.parts.map((part, index) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: parts have no ids
-                <MessagePart key={index} part={part} role={message.role} />
+                <MessagePart
+                  // biome-ignore lint/suspicious/noArrayIndexKey: parts have no ids
+                  key={index}
+                  onApproval={(requestId, optionId) =>
+                    void agent.respond([{ requestId, optionId }])
+                  }
+                  part={part}
+                  role={message.role}
+                />
               ))}
             </div>
           ))
@@ -87,35 +94,61 @@ export function SrulyChat({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function MessagePart({ part, role }: { part: EveMessagePart; role: "user" | "assistant" }) {
+type ApprovalHandler = (requestId: string, optionId: "approve" | "cancel") => void;
+
+function MessagePart({
+  part,
+  role,
+  onApproval,
+}: {
+  part: EveMessagePart;
+  role: "user" | "assistant";
+  onApproval: ApprovalHandler;
+}) {
   if (part.type === "text") {
     // Assistant replies arrive as markdown; user messages stay verbatim.
     return role === "assistant" ? <MarkdownLite text={part.text} /> : <p>{part.text}</p>;
   }
   if (part.type === "dynamic-tool") {
-    return <ToolPart part={part} />;
+    return <ToolPart onApproval={onApproval} part={part} />;
   }
   return null;
 }
 
 type DynamicToolPart = Extract<EveMessagePart, { type: "dynamic-tool" }>;
 
-function ToolPart({ part }: { part: DynamicToolPart }) {
+function ToolPart({ part, onApproval }: { part: DynamicToolPart; onApproval: ApprovalHandler }) {
   const running =
     part.state === "input-streaming" ||
     part.state === "input-available" ||
-    part.state === "approval-requested" ||
     part.state === "approval-responded";
   return (
     <div className="tool-card">
       <p className="tool-chip">
         <span aria-hidden="true">⚙</span> {part.toolName.replace(/_/g, " ")}
         {running ? <span className="muted"> — running…</span> : null}
+        {part.state === "approval-requested" ? (
+          <span className="muted"> — needs your approval</span>
+        ) : null}
       </p>
+      {part.state === "approval-requested" ? (
+        <div className="approval-request">
+          <pre className="code-block">{JSON.stringify(part.input, null, 2)}</pre>
+          <div className="copy-row">
+            <Button onClick={() => onApproval(part.approval.id, "approve")}>Approve</Button>
+            <Button onClick={() => onApproval(part.approval.id, "cancel")} variant="danger">
+              Deny
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {part.state === "output-error" ? (
         <p className="form-error">{part.errorText}</p>
       ) : part.state === "output-available" ? (
         <ToolOutput output={part.output} />
+      ) : null}
+      {part.state === "output-denied" ? (
+        <p className="muted">Denied — nothing was changed.</p>
       ) : null}
     </div>
   );

@@ -113,6 +113,7 @@ type WorkspaceModule = {
   label: string;
   description: string;
   enabled: boolean;
+  available: boolean;
 };
 
 function ModulesCard({
@@ -132,24 +133,38 @@ function ModulesCard({
       {error === null ? null : <p className="form-error">{error}</p>}
       <div className="module-grid">
         {modules.map((module) => (
-          <div className={module.enabled ? "module-tile enabled" : "module-tile"} key={module.slug}>
+          <div
+            className={
+              !module.available
+                ? "module-tile coming-soon"
+                : module.enabled
+                  ? "module-tile enabled"
+                  : "module-tile"
+            }
+            key={module.slug}
+          >
             <div className="module-tile-header">
-              <h3 id={`module-${module.slug}-label`}>{module.label}</h3>
-              <input
-                aria-describedby={`module-${module.slug}-description`}
-                aria-labelledby={`module-${module.slug}-label`}
-                checked={module.enabled}
-                disabled={!canAdminister}
-                onChange={(event) => {
-                  setError(null);
-                  setModuleEnabled({
-                    institutionId,
-                    moduleSlug: module.slug,
-                    enabled: event.target.checked,
-                  }).catch((caught) => setError(errorMessage(caught)));
-                }}
-                type="checkbox"
-              />
+              <h3 id={`module-${module.slug}-label`}>
+                {module.label}
+                {module.available ? null : <span className="coming-soon-tag">coming soon</span>}
+              </h3>
+              {module.available ? (
+                <input
+                  aria-describedby={`module-${module.slug}-description`}
+                  aria-labelledby={`module-${module.slug}-label`}
+                  checked={module.enabled}
+                  disabled={!canAdminister}
+                  onChange={(event) => {
+                    setError(null);
+                    setModuleEnabled({
+                      institutionId,
+                      moduleSlug: module.slug,
+                      enabled: event.target.checked,
+                    }).catch((caught) => setError(errorMessage(caught)));
+                  }}
+                  type="checkbox"
+                />
+              ) : null}
             </div>
             <p className="muted" id={`module-${module.slug}-description`}>
               {module.description}

@@ -98,9 +98,11 @@ Optional AI agents live in `agents/*` (Vercel's eve framework, version
 pinned) and mount into the web app via `withEve()` when
 `AGENTS_ENABLED=true` — same origin, same deployment, same per-community
 isolation as everything else. An agent's entire capability is its tool
-files: Sruly ships six read-only tools over the HTTP API (authenticated
-with an operator-created read-only key in `SHULSTACK_AGENT_API_KEY`), and
-eve's default shell/file/web tools are explicitly disabled. Route auth
+files: Sruly's tools wrap the HTTP API (authenticated with an
+operator-created key in `SHULSTACK_AGENT_API_KEY`, whose read/write scope
+bounds what he can do), money-writing tools sit behind eve approval gates
+(the user clicks Approve in chat before they execute), and eve's default
+shell/file/web tools are explicitly disabled. Route auth
 fails closed, accepting ShulStack users' Convex Auth JWTs (verified against
 the deployment's own OIDC issuer), Vercel OIDC, or local dev. Details:
 [agents.md](./agents.md).

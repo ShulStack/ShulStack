@@ -5,6 +5,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { httpAction, internalMutation } from "./_generated/server";
 import { personFields, pruneUndefined } from "./crm";
+import { applyPledgePayment, noteFields } from "./fundraising";
 import {
   type ApiPrincipal,
   authenticate,
@@ -23,6 +24,7 @@ import {
   householdMemberRoleValidator,
   isoDate,
   optionalIsoDate,
+  pledgeStageValidator,
 } from "./lib/validators";
 
 /**
@@ -785,4 +787,207 @@ export const householdSubresourceHandler = httpAction(async (ctx, request) => {
   }
 
   return notFound();
+});
+
+// --- Pledge writes -------------------------------------------------------------
+
+const PLEDGE_STAGE_VALUES = [
+  "prospect",
+  "cultivating",
+  "asked",
+  "pledged",
+  "fulfilled",
+  "declined",
+] as const;
+
+function pledgeDto(pledge: Doc<"pledges">) {
+  return {
+    id: pledge._id,
+    campaignId: pledge.campaignId,
+    householdId: pledge.householdId,
+    personId: pledge.personId,
+    amountMinor: pledge.amountMinor,
+    paidMinor: pledge.paidMinor,
+    stage: pledge.stage,
+    notes: pledge.notes,
+    updatedAt: pledge.updatedAt,
+  };
+}
+
+export const apiUpdatePledge = internalMutation({
+  args: {
+    institutionId: v.id("institutions"),
+    viaApiKey: v.string(),
+    id: v.string(),
+    stage: v.optional(pledgeStageValidator),
+    amountMinor: v.optional(v.number()),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const pledgeId = ctx.db.normalizeId("pledges", args.id);
+    const pledge = pledgeId === null ? null : await ctx.db.get(pledgeId);
+    if (pledge === null || pledge.institutionId !== args.institutionId) {
+      return null;
+    }
+    const noted = noteFields({ notes: args.notes });
+    await ctx.db.patch(pledge._id, {
+      ...(args.stage === undefined ? {} : { stage: args.stage }),
+      ...(args.amountMinor === undefined ? {} : { amountMinor: args.amountMinor }),
+      ...(noted === null ? {} : noted),
+      updatedAt: Date.now(),
+    });
+    await logAudit(ctx, {
+      institutionId: pledge.institutionId,
+      entityType: "pledge",
+      entityId: pledge._id,
+      action: "update",
+      before: { stage: pledge.stage, amountMinor: pledge.amountMinor },
+      after: {
+        stage: args.stage ?? pledge.stage,
+        amountMinor: args.amountMinor ?? pledge.amountMinor,
+        viaApiKey: args.viaApiKey,
+      },
+    });
+    await emitDomainEvent(ctx, {
+      institutionId: pledge.institutionId,
+      eventName: "pledge.updated",
+      payload: { pledgeId: pledge._id },
+    });
+    const updated = await ctx.db.get(pledge._id);
+    return updated === null ? null : pledgeDto(updated);
+  },
+});
+
+export const apiRecordPledgeGift = internalMutation({
+  args: {
+    institutionId: v.id("institutions"),
+    viaApiKey: v.string(),
+    id: v.string(),
+    amountMinor: v.number(),
+    occurredAt: v.string(),
+    method: v.optional(v.string()),
+    memo: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const pledgeId = ctx.db.normalizeId("pledges", args.id);
+    const pledge = pledgeId === null ? null : await ctx.db.get(pledgeId);
+    if (pledge === null || pledge.institutionId !== args.institutionId) {
+      return null;
+    }
+    // applyPledgePayment is the single sanctioned path: matched ledger pair,
+    // paidMinor bump, stage advance, audit, and the payment.recorded event.
+    const result = await applyPledgePayment(ctx, pledge, {
+      amountMinor: args.amountMinor,
+      occurredAt: args.occurredAt,
+      method: args.method,
+      memo: args.memo,
+      viaApiKey: args.viaApiKey,
+    });
+    return result;
+  },
+});
+
+/** Routes PATCH /api/v1/pledges/{id}. */
+export const pledgePatchHandler = httpAction(async (ctx, request) => {
+  const principal = await authenticate(ctx, request);
+  if (principal instanceof Response) {
+    return principal;
+  }
+  const denied = requireWriteScope(principal);
+  if (denied !== null) {
+    return denied;
+  }
+  const url = new URL(request.url);
+  const id = url.pathname.replace(/^\/api\/v1\/pledges\//, "");
+  if (id === "" || id.includes("/")) {
+    return notFound();
+  }
+  const body = await readJsonObject(request);
+  if (body instanceof Response) {
+    return body;
+  }
+  const parsed = parseBody(body, (fields) => {
+    assertKnownFields(fields, ["stage", "amountMinor", "notes"]);
+    const amountMinor = fields.amountMinor;
+    if (
+      amountMinor !== undefined &&
+      (typeof amountMinor !== "number" || !Number.isSafeInteger(amountMinor) || amountMinor < 0)
+    ) {
+      throw new InvalidBodyError(
+        "amountMinor must be a non-negative integer in minor units (e.g. cents).",
+      );
+    }
+    return {
+      stage: enumField(fields, "stage", PLEDGE_STAGE_VALUES),
+      amountMinor: amountMinor as number | undefined,
+      notes: stringField(fields, "notes"),
+    };
+  });
+  if (parsed instanceof Response) {
+    return parsed;
+  }
+  const data = await ctx.runMutation(internal.httpApiWrites.apiUpdatePledge, {
+    institutionId: principal.institutionId,
+    viaApiKey: principal.keyPrefix,
+    id,
+    ...parsed,
+  });
+  if (data === null) {
+    return notFound();
+  }
+  return jsonResponse(200, { data });
+});
+
+/** Routes POST /api/v1/pledges/{id}/gifts. */
+export const pledgeGiftHandler = httpAction(async (ctx, request) => {
+  const principal = await authenticate(ctx, request);
+  if (principal instanceof Response) {
+    return principal;
+  }
+  const denied = requireWriteScope(principal);
+  if (denied !== null) {
+    return denied;
+  }
+  const url = new URL(request.url);
+  const segments = url.pathname.replace(/^\/api\/v1\/pledges\//, "").split("/");
+  const id = segments[0] ?? "";
+  if (id === "" || segments.length !== 2 || segments[1] !== "gifts") {
+    return notFound();
+  }
+  const body = await readJsonObject(request);
+  if (body instanceof Response) {
+    return body;
+  }
+  const parsed = parseBody(body, (fields) => {
+    assertKnownFields(fields, ["amountMinor", "occurredAt", "method", "memo"]);
+    const amountMinor = fields.amountMinor;
+    if (typeof amountMinor !== "number" || !Number.isSafeInteger(amountMinor) || amountMinor <= 0) {
+      throw new InvalidBodyError(
+        "amountMinor must be a positive integer in minor units (e.g. cents).",
+      );
+    }
+    const occurredAt = isoDateField(fields, "occurredAt");
+    if (occurredAt === undefined) {
+      throw new InvalidBodyError("occurredAt is required (YYYY-MM-DD).");
+    }
+    return {
+      amountMinor,
+      occurredAt,
+      method: stringField(fields, "method"),
+      memo: stringField(fields, "memo"),
+    };
+  });
+  if (parsed instanceof Response) {
+    return parsed;
+  }
+  const data = await ctx.runMutation(internal.httpApiWrites.apiRecordPledgeGift, {
+    institutionId: principal.institutionId,
+    viaApiKey: principal.keyPrefix,
+    id,
+    ...parsed,
+  });
+  if (data === null) {
+    return notFound();
+  }
+  return jsonResponse(201, { data });
 });

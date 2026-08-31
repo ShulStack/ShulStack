@@ -2,7 +2,7 @@ import { OPEN_PLEDGE_STAGES, type PledgeStage } from "@shulstack/platform";
 import { ConvexError, v } from "convex/values";
 
 import type { Doc, Id } from "./_generated/dataModel";
-import type { QueryCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import { recordLedgerEntry } from "./ledger";
 import { requireStaff, staffOrNull } from "./lib/access";
@@ -319,7 +319,7 @@ export const setPledgeSchedule = mutation({
 
 /** Resolve incoming note args to stored fields: a rich `notesDoc` wins and
  * derives the plain `notes`; an empty document clears both. */
-function noteFields(args: { notes?: string; notesDoc?: Record<string, unknown> }) {
+export function noteFields(args: { notes?: string; notesDoc?: Record<string, unknown> }) {
   if (args.notesDoc !== undefined) {
     const plain = richTextToPlain(args.notesDoc);
     return plain === ""
@@ -470,6 +470,84 @@ function stageAfterPayment(
  * balance, mirroring how gifts appear in ShulCloud exports), bumps the
  * pledge's paidMinor, and advances the stage.
  */
+type PledgePaymentInput = {
+  amountMinor: number;
+  occurredAt: string;
+  method?: string;
+  memo?: string;
+  /** The acting staff user, when there is one. */
+  actorUserId?: Id<"users">;
+  /** The acting API key's display prefix, for API-driven gifts. */
+  viaApiKey?: string;
+};
+
+/**
+ * The one code path that applies a gift to a pledge: writes the matched
+ * charge/payment pair onto the household ledger, bumps paidMinor, advances
+ * the stage, audits, and emits payment.recorded. Shared by the staff
+ * mutation and the HTTP API. Caller is responsible for authorization.
+ */
+export async function applyPledgePayment(
+  ctx: MutationCtx,
+  pledge: Doc<"pledges">,
+  input: PledgePaymentInput,
+): Promise<{ paidMinor: number; stage: PledgeStage }> {
+  if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0) {
+    throw new ConvexError("Payments must be positive integers in minor units.");
+  }
+  const campaign = await ctx.db.get(pledge.campaignId);
+  const household = await ctx.db.get(pledge.householdId);
+  if (campaign === null || household === null) {
+    throw new ConvexError("Pledge is missing its campaign or household.");
+  }
+
+  const memo = input.memo ?? `Gift — ${campaign.name}`;
+  const entryFields = {
+    amountMinor: input.amountMinor,
+    occurredAt: input.occurredAt,
+    category: campaign.name,
+    memo,
+    createdBy: input.actorUserId,
+    metadata: { pledgeId: pledge._id, campaignId: campaign._id },
+  };
+  await recordLedgerEntry(ctx, household, { entryType: "charge", ...entryFields });
+  await recordLedgerEntry(ctx, household, {
+    entryType: "payment",
+    method: input.method,
+    ...entryFields,
+  });
+
+  const paidMinor = pledge.paidMinor + input.amountMinor;
+  const stage = stageAfterPayment(pledge.stage, paidMinor, pledge.amountMinor);
+  await ctx.db.patch(pledge._id, { paidMinor, stage, updatedAt: Date.now() });
+
+  await logAudit(ctx, {
+    institutionId: pledge.institutionId,
+    actorUserId: input.actorUserId,
+    entityType: "pledge",
+    entityId: pledge._id,
+    action: "update",
+    after: {
+      paymentMinor: input.amountMinor,
+      paidMinor,
+      stage,
+      campaign: campaign.name,
+      ...(input.viaApiKey === undefined ? {} : { viaApiKey: input.viaApiKey }),
+    },
+  });
+  await emitDomainEvent(ctx, {
+    institutionId: pledge.institutionId,
+    eventName: "payment.recorded",
+    payload: {
+      pledgeId: pledge._id,
+      campaignId: campaign._id,
+      householdId: household._id,
+      amountMinor: input.amountMinor,
+    },
+  });
+  return { paidMinor, stage };
+}
+
 export const recordPledgePayment = mutation({
   args: {
     pledgeId: v.id("pledges"),
@@ -484,59 +562,13 @@ export const recordPledgePayment = mutation({
       throw new ConvexError("Pledge not found.");
     }
     const { userId } = await requireStaff(ctx, pledge.institutionId);
-    if (!Number.isSafeInteger(args.amountMinor) || args.amountMinor <= 0) {
-      throw new ConvexError("Payments must be positive integers in minor units.");
-    }
-    const campaign = await ctx.db.get(pledge.campaignId);
-    const household = await ctx.db.get(pledge.householdId);
-    if (campaign === null || household === null) {
-      throw new ConvexError("Pledge is missing its campaign or household.");
-    }
-
-    const memo = args.memo ?? `Gift — ${campaign.name}`;
-    await recordLedgerEntry(ctx, household, {
-      entryType: "charge",
+    return await applyPledgePayment(ctx, pledge, {
       amountMinor: args.amountMinor,
       occurredAt: args.occurredAt,
-      category: campaign.name,
-      memo,
-      createdBy: userId,
-      metadata: { pledgeId: pledge._id, campaignId: campaign._id },
-    });
-    await recordLedgerEntry(ctx, household, {
-      entryType: "payment",
-      amountMinor: args.amountMinor,
-      occurredAt: args.occurredAt,
-      category: campaign.name,
       method: args.method,
-      memo,
-      createdBy: userId,
-      metadata: { pledgeId: pledge._id, campaignId: campaign._id },
-    });
-
-    const paidMinor = pledge.paidMinor + args.amountMinor;
-    const stage = stageAfterPayment(pledge.stage, paidMinor, pledge.amountMinor);
-    await ctx.db.patch(pledge._id, { paidMinor, stage, updatedAt: Date.now() });
-
-    await logAudit(ctx, {
-      institutionId: pledge.institutionId,
+      memo: args.memo,
       actorUserId: userId,
-      entityType: "pledge",
-      entityId: pledge._id,
-      action: "update",
-      after: { paymentMinor: args.amountMinor, paidMinor, stage, campaign: campaign.name },
     });
-    await emitDomainEvent(ctx, {
-      institutionId: pledge.institutionId,
-      eventName: "payment.recorded",
-      payload: {
-        pledgeId: pledge._id,
-        campaignId: campaign._id,
-        householdId: household._id,
-        amountMinor: args.amountMinor,
-      },
-    });
-    return { paidMinor, stage };
   },
 });
 

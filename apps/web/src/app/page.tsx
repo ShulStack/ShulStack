@@ -56,8 +56,14 @@ export default function LandingPage() {
         </p>
         <div className="module-grid">
           {MODULES.map((module) => (
-            <div className="module-tile" key={module.slug}>
-              <h3>{module.label}</h3>
+            <div
+              className={module.available ? "module-tile" : "module-tile coming-soon"}
+              key={module.slug}
+            >
+              <h3>
+                {module.label}
+                {module.available ? null : <span className="coming-soon-tag">coming soon</span>}
+              </h3>
               <p className="muted">{module.description}</p>
             </div>
           ))}

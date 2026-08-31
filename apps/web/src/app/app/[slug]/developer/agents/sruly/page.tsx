@@ -25,7 +25,7 @@ export default function SrulyChatPage() {
             All agents
           </Link>
         }
-        description="Ask about households, people, balances, giving analytics, and the pledge pipeline. Sruly only reads — he can't change records."
+        description="Ask about households, people, balances, giving analytics, and the pledge pipeline — or ask him to fix a record. Money changes always wait for your approval."
         title="Sruly"
       />
       <SrulyChat />

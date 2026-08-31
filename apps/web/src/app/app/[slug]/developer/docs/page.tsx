@@ -112,6 +112,17 @@ const ENDPOINTS: Endpoint[] = [
     summary: "Pledges joined to household/person/campaign names, with stage and amounts.",
     params: "campaignId, stage, open=true",
   },
+  {
+    method: "PATCH",
+    path: "/pledges/{id}",
+    summary: "Update a pledge. Body: stage, amountMinor, notes.",
+  },
+  {
+    method: "POST",
+    path: "/pledges/{id}/gifts",
+    summary:
+      "Record a gift against a pledge: posts the matched ledger pair, bumps the received total, advances the stage. Body: amountMinor, occurredAt, method, memo.",
+  },
 ];
 
 export default function ApiDocsPage() {

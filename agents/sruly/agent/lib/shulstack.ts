@@ -46,16 +46,20 @@ export function shulstackSiteUrl(): string {
  * GET a ShulStack API path. Failures come back as readable text so the model
  * can explain the problem instead of hallucinating around it.
  */
+function missingKeyError(): { error: string } {
+  return {
+    error:
+      "SHULSTACK_AGENT_API_KEY is not configured. Create an API key on the Developer → API keys page and set it in this deployment's environment.",
+  };
+}
+
 export async function shulstackGet(
   path: string,
   params: Record<string, string | number | undefined> = {},
 ): Promise<unknown> {
   const apiKey = process.env.SHULSTACK_AGENT_API_KEY;
   if (apiKey === undefined || apiKey === "") {
-    return {
-      error:
-        "SHULSTACK_AGENT_API_KEY is not configured. Create a read-only API key on the Developer → API keys page and set it in this deployment's environment.",
-    };
+    return missingKeyError();
   }
   const url = new URL(`${shulstackSiteUrl()}/api/v1${path}`);
   for (const [key, value] of Object.entries(params)) {
@@ -71,4 +75,46 @@ export async function shulstackGet(
     return { error: `ShulStack API responded ${response.status}`, details: body };
   }
   return body;
+}
+
+/**
+ * POST/PATCH to the write API. Undefined body fields are dropped so tools can
+ * pass optional inputs straight through. A 403 means the configured key is
+ * read-only — the error text tells the operator what to change.
+ */
+export async function shulstackSend(
+  method: "POST" | "PATCH",
+  path: string,
+  body: Record<string, unknown>,
+): Promise<unknown> {
+  const apiKey = process.env.SHULSTACK_AGENT_API_KEY;
+  if (apiKey === undefined || apiKey === "") {
+    return missingKeyError();
+  }
+  const payload: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(body)) {
+    if (value !== undefined) {
+      payload[key] = value;
+    }
+  }
+  const response = await fetch(`${shulstackSiteUrl()}/api/v1${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  const responseBody: unknown = await response.json().catch(() => null);
+  if (response.status === 403) {
+    return {
+      error:
+        "The agent's API key is read-only. To let Sruly make updates, create a Read & write key on the Developer → API keys page and set it as SHULSTACK_AGENT_API_KEY.",
+      details: responseBody,
+    };
+  }
+  if (!response.ok) {
+    return { error: `ShulStack API responded ${response.status}`, details: responseBody };
+  }
+  return responseBody;
 }

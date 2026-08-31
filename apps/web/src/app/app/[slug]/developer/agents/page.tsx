@@ -36,9 +36,10 @@ export default function AgentsPage() {
           )}
         </div>
         <p className="muted">
-          Sruly answers staff questions about your community: who's in a household, birth dates,
-          Hebrew names, balances, and giving history. Read-only by design — he can look things up,
-          never change them.
+          Sruly answers staff questions about your community — who's in a household, birth dates,
+          balances, giving analytics — and can fix records when asked. Anything that moves money
+          waits for an explicit approval click in the chat, and every change lands in the audit
+          trail.
         </p>
         {sruly === "running" ? (
           <p>
@@ -51,9 +52,10 @@ export default function AgentsPage() {
             <h3>Enable Sruly</h3>
             <ol className="muted docs-list">
               <li>
-                Create a <strong>read-only</strong> API key named “Sruly” on the{" "}
+                Create an API key named “Sruly” on the{" "}
                 <Link href={`/app/${params.slug}/developer/api-keys`}>API keys page</Link> and copy
-                it.
+                it — <strong>Read &amp; write</strong> lets him fix records; read-only limits him to
+                questions.
               </li>
               <li>
                 In your Vercel project settings, add two environment variables:{" "}

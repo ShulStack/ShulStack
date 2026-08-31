@@ -8,12 +8,18 @@ each community's agents are automatically isolated: their own API key, their
 own model billing (via Vercel's AI Gateway, on your account), their own
 session history — and agent fixes arrive with normal ShulStack updates.
 
-The first agent is **Sruly** (`agents/sruly`), a read-only membership and
-analytics assistant: who's in a household, birth dates, Hebrew names,
-balances, giving history — plus community-wide analytics ("who gave over
-$10,000", "top donors this year", "how much in dues") through the API's
-aggregation endpoints, and campaign/pledge questions. His entire capability
-is read-only tools over the ShulStack HTTP API; eve's default
+The first agent is **Sruly** (`agents/sruly`), a membership and analytics
+assistant: who's in a household, birth dates, Hebrew names, balances,
+giving history — plus community-wide analytics ("who gave over $10,000",
+"top donors this year", "how much in dues") through the API's aggregation
+endpoints, and campaign/pledge questions. With a **Read & write** key he
+also keeps records right: correcting names and dates, creating missing
+people/households, moving pledges through the pipeline, and updating notes.
+Two guard rails: money-writing tools (`add_ledger_entry`,
+`record_pledge_gift`) sit behind eve approval gates — the exact call is
+shown in chat and executes only after the user clicks **Approve** — and
+every write lands in the audit trail attributed to the agent's key. His
+entire capability is those tools over the ShulStack HTTP API; eve's default
 shell/file/web tools are explicitly disabled.
 
 Beyond the full chat page, Sruly is available as a **collapsible panel on
@@ -29,8 +35,9 @@ own CSS instead.)
 
 ## Enable on Vercel
 
-1. On **Developer → API keys**, create a **read-only** key named "Sruly"
-   and copy the secret.
+1. On **Developer → API keys**, create a key named "Sruly" and copy the
+   secret — **Read & write** for full capability, read-only to limit him to
+   questions.
 2. In the Vercel project's environment variables, add:
    - `AGENTS_ENABLED=true`
    - `SHULSTACK_AGENT_API_KEY=ssk_…` (the key from step 1)

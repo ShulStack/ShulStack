@@ -166,6 +166,89 @@ describe("analytics API", () => {
     expect(crossTenant.status).toBe(404);
   });
 
+  test("pledge write endpoints require write scope and keep the books tied", async () => {
+    const campaignId = await owner.as.mutation(api.fundraising.createCampaign, {
+      institutionId,
+      name: "Building Campaign",
+    });
+    const cohen = await household("Cohen Family");
+    const pledgeId = await owner.as.mutation(api.fundraising.createPledge, {
+      campaignId,
+      householdId: cohen,
+      amountMinor: 500_000,
+      stage: "asked",
+    });
+    const writeKey = await owner.as.mutation(api.developer.createApiKey, {
+      institutionId,
+      name: "Writer",
+      scopes: ["read", "write"],
+    });
+
+    // The default read key is refused.
+    const denied = await t.fetch(`/api/v1/pledges/${pledgeId}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ stage: "pledged" }),
+    });
+    expect(denied.status).toBe(403);
+
+    const patched = await t.fetch(`/api/v1/pledges/${pledgeId}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${writeKey.secret}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ stage: "pledged", notes: "Confirmed by phone" }),
+    });
+    expect(patched.status).toBe(200);
+    expect((await patched.json()).data).toMatchObject({
+      stage: "pledged",
+      notes: "Confirmed by phone",
+    });
+
+    const gift = await t.fetch(`/api/v1/pledges/${pledgeId}/gifts`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${writeKey.secret}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ amountMinor: 500_000, occurredAt: "2026-09-15", method: "check" }),
+    });
+    expect(gift.status).toBe(201);
+    expect((await gift.json()).data).toEqual({ paidMinor: 500_000, stage: "fulfilled" });
+
+    // The gift landed as a matched pair: balance unmoved, books reconcile.
+    const finance = await owner.as.query(api.finance.getHouseholdFinance, {
+      householdId: cohen,
+    });
+    expect(finance?.profile?.balanceMinor).toBe(0);
+    const report = await owner.as.query(api.finance.reconcileBalances, { institutionId });
+    expect(report.mismatches).toEqual([]);
+
+    // Another institution's pledge id answers 404 exactly like a missing one.
+    const outsider = await signUp(t, "outsider2@example.com");
+    const otherInstitution = await createInstitutionAs(outsider.as, "other-shul-2", "Other 2");
+    const otherKey = await outsider.as.mutation(api.developer.createApiKey, {
+      institutionId: otherInstitution,
+      name: "Other writer",
+      scopes: ["read", "write"],
+    });
+    const crossTenant = await t.fetch(`/api/v1/pledges/${pledgeId}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${otherKey.secret}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ stage: "declined" }),
+    });
+    expect(crossTenant.status).toBe(404);
+
+    // Bad bodies get structured 400s.
+    const badStage = await t.fetch(`/api/v1/pledges/${pledgeId}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${writeKey.secret}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ stage: "maybe" }),
+    });
+    expect(badStage.status).toBe(400);
+    const badGift = await t.fetch(`/api/v1/pledges/${pledgeId}/gifts`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${writeKey.secret}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ amountMinor: -5, occurredAt: "2026-09-15" }),
+    });
+    expect(badGift.status).toBe(400);
+  });
+
   test("bad parameters get structured 400s", async () => {
     expect((await get("/api/v1/analytics/households?metric=vibes")).status).toBe(400);
     expect((await get("/api/v1/analytics/households?min=lots")).status).toBe(400);
