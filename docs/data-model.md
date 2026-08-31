@@ -16,6 +16,7 @@ yet — no code reads or writes them today.
 | `staffMembers` | Auth user ↔ institution with `owner`/`admin`/`staff` role |
 | `personUserLinks` | Auth user ↔ CRM person (member portal — *reserved*) |
 | `moduleEnablement` | Which modules are switched on per institution |
+| `apiKeys` | Hashed, institution-scoped keys for the read-only HTTP API |
 | `auditLogs` | Who changed what (written only inside mutations) |
 | `domainEvents` | Facts to react to, with retry/attempt tracking |
 | `households` | The household / billing unit |

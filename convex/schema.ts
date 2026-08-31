@@ -86,6 +86,24 @@ export default defineSchema({
     .index("by_institution", ["institutionId"])
     .index("by_entity", ["entityType", "entityId"]),
 
+  // Programmatic access to one institution's data over the HTTP API (and the
+  // MCP server that will ride on it). The secret is never stored: only its
+  // SHA-256 hash plus a short display prefix. Revocation is permanent.
+  apiKeys: defineTable({
+    institutionId: v.id("institutions"),
+    name: v.string(),
+    keyPrefix: v.string(),
+    keyHash: v.string(),
+    scopes: v.array(v.literal("read")),
+    createdBy: v.id("users"),
+    lastUsedAt: v.optional(v.number()),
+    expiresAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_institution", ["institutionId"])
+    .index("by_hash", ["keyHash"]),
+
   domainEvents: defineTable({
     institutionId: v.id("institutions"),
     eventName: v.string(),
@@ -350,7 +368,7 @@ export default defineSchema({
     metadata: metadataValidator,
   })
     .index("by_household_date", ["householdId", "occurredAt"])
-    .index("by_institution", ["institutionId"]),
+    .index("by_institution_date", ["institutionId", "occurredAt"]),
 
   // --- Content ---------------------------------------------------------------
 

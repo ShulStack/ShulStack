@@ -38,6 +38,10 @@ The platform core works today and is covered by an automated test suite
   summary opening balance instead of double-counting it.
 - **Website** — per-institution pages with a block editor and
   draft/publish/archive flow, served on a cached public site route.
+- **HTTP API** — a versioned read-only REST API over households, people,
+  ledgers, and institution-wide transactions, authenticated with hashed,
+  institution-scoped API keys managed from the in-app Developer section
+  (which also hosts the live API reference).
 - **Domain events** — mutations emit events (`household.created`, …)
   processed by an idempotent, self-draining background processor with a
   failed-event requeue path.

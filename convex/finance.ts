@@ -211,7 +211,7 @@ export const reconcileBalances = query({
 
     const entries = await ctx.db
       .query("ledgerEntries")
-      .withIndex("by_institution", (q) => q.eq("institutionId", args.institutionId))
+      .withIndex("by_institution_date", (q) => q.eq("institutionId", args.institutionId))
       .collect();
     const ledgerTotals = new Map<Id<"households">, number>();
     for (const entry of entries) {

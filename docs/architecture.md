@@ -80,6 +80,18 @@ no client-callable "write audit log" endpoint, so the trail cannot be forged.
 The first real handler provisions a billing profile for every new household,
 so finance flows never see a missing profile.
 
+## The HTTP API and API keys
+
+`convex/httpApi.ts` serves a versioned, read-only REST API (`/api/v1/…`) on
+the deployment's site URL, and the planned MCP server will ride on it. Its
+principals are **API keys** (`developer.ts`), not users: institution-scoped,
+admin-managed, `ssk_…` secrets shown once and stored only as SHA-256 hashes.
+Every handler resolves the key first and scopes all reads to its
+institution; IDs from other institutions 404 exactly like missing IDs. The
+data queries behind the handlers are `internalQuery`s — the only public
+surface is the router itself. Keys are read-only today (`scopes: ["read"]`);
+write scopes are a deliberate future decision, not an omission.
+
 ## Conventions
 
 - **Money** is integer minor units (`balanceMinor`), never floats or strings.

@@ -7,6 +7,7 @@ import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/re
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { useState } from "react";
 
 import { SignInForm } from "../../../components/sign-in-form";
 import { useWorkspace } from "../../../components/use-workspace";
@@ -59,12 +60,24 @@ function WorkspaceShell({ children }: { children: ReactNode }) {
 
   const cmsEnabled = workspace.modules.some((module) => module.slug === "cms" && module.enabled);
   const isAdmin = workspace.role === "admin" || workspace.role === "owner";
-  const navItems = [
+  const navItems: NavEntry[] = [
     { segment: "", label: "Overview" },
     { segment: "households", label: "Households" },
     { segment: "people", label: "People" },
     ...(cmsEnabled ? [{ segment: "website", label: "Website" }] : []),
     ...(isAdmin ? [{ segment: "import", label: "Import" }] : []),
+    ...(isAdmin
+      ? [
+          {
+            label: "Developer",
+            children: [
+              { segment: "developer/api-keys", label: "API keys" },
+              { segment: "developer/mcp", label: "MCP" },
+              { segment: "developer/docs", label: "Docs" },
+            ],
+          },
+        ]
+      : []),
     { segment: "settings", label: "Settings" },
   ];
   return (
@@ -75,14 +88,72 @@ function WorkspaceShell({ children }: { children: ReactNode }) {
   );
 }
 
-type NavItem = { segment: string; label: string };
+type NavLeaf = { segment: string; label: string };
+type NavEntry = NavLeaf | { label: string; children: NavLeaf[] };
+
+function NavItemLink({
+  base,
+  item,
+  pathname,
+  sub = false,
+}: {
+  base: string;
+  item: NavLeaf;
+  pathname: string;
+  sub?: boolean;
+}) {
+  const href = item.segment === "" ? base : `${base}/${item.segment}`;
+  const isActive = item.segment === "" ? pathname === base : pathname.startsWith(href);
+  const className = `${isActive ? "nav-link active" : "nav-link"}${sub ? " nav-sublink" : ""}`;
+  return (
+    <Link aria-current={isActive ? "page" : undefined} className={className} href={href}>
+      {item.label}
+    </Link>
+  );
+}
+
+/** A collapsible nav section (e.g. Developer), open while you're inside it. */
+function NavGroup({
+  base,
+  group,
+  pathname,
+}: {
+  base: string;
+  group: NavGroupEntry;
+  pathname: string;
+}) {
+  const containsCurrent = group.children.some((child) =>
+    pathname.startsWith(`${base}/${child.segment}`),
+  );
+  const [expanded, setExpanded] = useState(containsCurrent);
+  return (
+    <div className="nav-group">
+      <button
+        aria-expanded={expanded || containsCurrent}
+        className="nav-link nav-group-toggle"
+        onClick={() => setExpanded((current) => !current)}
+        type="button"
+      >
+        {group.label}
+        <span aria-hidden="true">{expanded || containsCurrent ? "▾" : "▸"}</span>
+      </button>
+      {expanded || containsCurrent
+        ? group.children.map((child) => (
+            <NavItemLink base={base} item={child} key={child.segment} pathname={pathname} sub />
+          ))
+        : null}
+    </div>
+  );
+}
+
+type NavGroupEntry = { label: string; children: NavLeaf[] };
 
 function WorkspaceNav({
   institutionName,
   navItems,
 }: {
   institutionName: string;
-  navItems: NavItem[];
+  navItems: NavEntry[];
 }) {
   const params = useParams<{ slug: string }>();
   const pathname = usePathname();
@@ -98,20 +169,13 @@ function WorkspaceNav({
         </Link>
         <p className="app-nav-institution">{institutionName}</p>
         <nav>
-          {navItems.map((item) => {
-            const href = item.segment === "" ? base : `${base}/${item.segment}`;
-            const isActive = item.segment === "" ? pathname === base : pathname.startsWith(href);
-            return (
-              <Link
-                aria-current={isActive ? "page" : undefined}
-                className={isActive ? "nav-link active" : "nav-link"}
-                href={href}
-                key={href}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+          {navItems.map((item) =>
+            "children" in item ? (
+              <NavGroup base={base} group={item} key={item.label} pathname={pathname} />
+            ) : (
+              <NavItemLink base={base} item={item} key={item.segment} pathname={pathname} />
+            ),
+          )}
         </nav>
       </div>
       <div className="app-nav-bottom">

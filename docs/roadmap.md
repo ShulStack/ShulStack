@@ -39,7 +39,8 @@ of it.
 6. **Recurring dues billing** — generate annual/monthly charges onto the
    ledger from a dues schedule.
 7. **MCP server for agents** — expose the membership/finance data over MCP
-   (institution-scoped, role-aware) so AI agents can query it safely.
+   so AI agents can query it safely. The foundation shipped: the read-only
+   HTTP API with institution-scoped API keys; MCP rides on the same keys.
 
 ## Later
 
